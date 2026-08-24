@@ -91,6 +91,8 @@ Tests use **Jest** (with optional **Puppeteer** helpers). See [TESTING.md](TESTI
 
 ## Privacy
 
+**[Full privacy policy](PRIVACY.md)** — also intended to live at [openpromptdatabase.com/privacy](https://openpromptdatabase.com/privacy). Drop-in page: [`docs/privacy.html`](docs/privacy.html).
+
 - Your prompt library is stored **locally** in the browser (`chrome.storage.local`)
 - Catalog **import** pulls a prompt you selected from the [Open Prompt Database](https://openpromptdatabase.com/) into your local library
 - Catalog **share / upload** sends a prompt you choose (title, content, tags) to Open Prompt Database under your publisher handle. That only happens when you click **Share to Open Prompt Database**
