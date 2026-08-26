@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [3.0.4] - 2026-08-26
+
+### Changed
+
+- When a known assistant has no chat input yet, the side panel toasts first and offers **Pick field** so you can pin a new composer if the site UI changed. Custom sites still open the picker automatically.
+
 ## [3.0.3] - 2026-08-26
 
 ### Fixed

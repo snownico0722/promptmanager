@@ -1,4 +1,4 @@
-## Open Prompt Manager — Architecture and Developer Guide (v3.0.3)
+## Open Prompt Manager — Architecture and Developer Guide (v3.0.4)
 
 This document explains how the Chrome extension in `src` is structured and how the main flows work.
 
@@ -41,7 +41,7 @@ Clicking a prompt in the side panel sends `OPM_INSERT_PROMPT` to the worker with
 
 The worker activates the tab, ensures the content script is present (reload fallback for preexisting tabs), then sends `OPM_INSERT_PROMPT_CONTENT`. The content script waits up to 8s for a composer. Insert is verified against the field text; a failed write is `insert_failed`, not a silent success.
 
-Known assistants that have no composer yet get a toast, not the custom-site field picker. Custom sites still open the pin picker on `no_input`.
+Known assistants that have no composer yet get a toast with an optional **Pick field** action. Custom sites still open the pin picker on `no_input`.
 
 Right-clicking a saved prompt in the page context menu inserts it into that tab (same path), it does not copy to the clipboard.
 

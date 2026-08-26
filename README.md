@@ -2,7 +2,7 @@
 
 A lightweight, open-source Chrome extension for saving, organizing, and inserting prompts across AI chatbots — ChatGPT, Claude, Gemini, Grok, and 14 other built-in assistants.
 
-**Current version:** 3.0.3 · [Chrome Web Store](https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain) · [Open Prompt Database](https://openpromptdatabase.com/) · [Release notes](https://github.com/jonathanbertholet/promptmanager/releases/tag/3.0.3)
+**Current version:** 3.0.4 · [Chrome Web Store](https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain) · [Open Prompt Database](https://openpromptdatabase.com/) · [Release notes](https://github.com/jonathanbertholet/promptmanager/releases/tag/3.0.4)
 
 ## Features
 

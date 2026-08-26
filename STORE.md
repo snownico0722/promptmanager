@@ -1,9 +1,9 @@
-# Chrome Web Store listing (3.0.3)
+# Chrome Web Store listing (3.0.4)
 
 ## What's new
 
 ```
-First-install insert now works on tabs that were already open. Multiline prompts keep their line breaks in ChatGPT. Side-panel insert is more reliable, and right-clicking a saved prompt inserts it into the page.
+If a known assistant has no chat input yet, you get a toast with Pick field — so you can pin a new box when the site UI changes, without the overlay opening on every miss.
 ```
 
 Paste these into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) listing. The short description also lives in `src/manifest.json` (132-character limit). The long description is plain text — Chrome strips Markdown.

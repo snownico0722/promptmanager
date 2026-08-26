@@ -314,6 +314,9 @@ html {
     left: 50%;
     transform: translateX(-50%);
     z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     max-width: calc(100% - 24px);
     padding: 10px 14px;
     border-radius: 8px;
@@ -325,6 +328,18 @@ html {
 
   .spm-toast-error {
     background: #c53030;
+  }
+
+  .spm-toast-action {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
   }
 
   .spm-prompt-action-btn:has(img[width="18"]) img {

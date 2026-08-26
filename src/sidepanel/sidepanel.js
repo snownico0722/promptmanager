@@ -405,8 +405,37 @@ async function insertPromptIntoActiveTab(prompt) {
     return true;
   }
 
+  // COMMENT: Known assistants already have a selector. Auto-picker is noisy when the
+  // composer is still loading, but the user can pin a new field if the UI changed.
+  if (result?.error === 'no_input' && result?.knownSite) {
+    showSidepanelToast('No chat input found. Wait for it to load, or pick the field if the page changed.', {
+      error: true,
+      action: {
+        label: 'Pick field',
+        onClick: () => startKnownSiteInputPicker(tab, pendingPrompt),
+      },
+    });
+    return false;
+  }
+
   showSidepanelToast(mapInsertError(result?.error), { error: true });
   return false;
+}
+
+/**
+ * COMMENT: Optional pin overlay after a known assistant's built-in selector missed.
+ * @param {chrome.tabs.Tab} tab
+ * @param {object} pendingPrompt
+ */
+async function startKnownSiteInputPicker(tab, pendingPrompt) {
+  const pickerResult = await startInputPickerForTab(tab, { pendingPrompt });
+  if (pickerResult?.error === 'permission_denied') {
+    showSidepanelToast('Allow site access for this page to pick its input field.', { error: true });
+    return;
+  }
+  if (!pickerResult?.ok && pickerResult?.error !== 'picker_already_active') {
+    showSidepanelToast(pickerResult?.error || 'Could not start input picker on this page.', { error: true });
+  }
 }
 
 function mapInsertError(code) {
@@ -830,16 +859,35 @@ function mapPublishError(code) {
   }
 }
 
-function showSidepanelToast(message, { error = false } = {}) {
+function showSidepanelToast(message, { error = false, action = null } = {}) {
   const existing = document.getElementById('spm-toast');
   if (existing) existing.remove();
   const toast = document.createElement('div');
   toast.id = 'spm-toast';
   toast.className = error ? 'spm-toast spm-toast-error' : 'spm-toast';
   toast.setAttribute('role', 'status');
-  toast.textContent = message;
+
+  const text = document.createElement('span');
+  text.textContent = message;
+  toast.appendChild(text);
+
+  if (action?.label && typeof action.onClick === 'function') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'spm-toast-action';
+    btn.textContent = action.label;
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      toast.remove();
+      action.onClick();
+    });
+    toast.appendChild(btn);
+  }
+
   document.body.appendChild(toast);
-  window.setTimeout(() => toast.remove(), 3200);
+  window.setTimeout(() => {
+    if (toast.isConnected) toast.remove();
+  }, action ? 8000 : 3200);
 }
 
 // COMMENT: Share publish re-renders the list before feedback can paint — replay after rebuild
