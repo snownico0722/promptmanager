@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [3.0.5] - 2026-08-27
+
+### Fixed
+
+- Inserting the same prompt a second time from the side panel with append off no longer shows a false error toast. Overwrite of identical text still counts as success.
+
 ## [3.0.4] - 2026-08-26
 
 ### Changed

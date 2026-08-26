@@ -1,9 +1,9 @@
-# Chrome Web Store listing (3.0.4)
+# Chrome Web Store listing (3.0.5)
 
 ## What's new
 
 ```
-If a known assistant has no chat input yet, you get a toast with Pick field — so you can pin a new box when the site UI changes, without the overlay opening on every miss.
+Inserting the same prompt again from the side panel with append off no longer shows a false error toast.
 ```
 
 Paste these into the [Developer Dashboard](https://chrome.google.com/webstore/devconsole) listing. The short description also lives in `src/manifest.json` (132-character limit). The long description is plain text — Chrome strips Markdown.

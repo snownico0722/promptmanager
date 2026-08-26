@@ -671,12 +671,22 @@ class InputBoxHandler {
           }
         }
       }
-      if (!InputBoxHandler._insertTextOnce(editor, trailing)) inserted = false;
-      if (!InputBoxHandler._textGained(beforeInsertionText, InputBoxHandler._readPlainText(editor), content)) {
+      if (!InputBoxHandler._insertTextOnce(editor, trailing)
+        && !InputBoxHandler._editorHasPrompt(editor, content)) {
+        inserted = false;
+      }
+      if (!InputBoxHandler._textGained(beforeInsertionText, InputBoxHandler._readPlainText(editor), content)
+        && !InputBoxHandler._editorHasPrompt(editor, content)) {
         inserted = false;
       }
     } else {
       inserted = InputBoxHandler._insertTextOnce(editor, content + trailing);
+    }
+
+    // COMMENT: Overwrite of the same prompt leaves the field unchanged. Do not
+    // run paste/beforeinput or ChatGPT may double the text.
+    if (!inserted && !disableOverwrite && InputBoxHandler._editorHasPrompt(editor, content)) {
+      inserted = true;
     }
 
     // COMMENT: Paste is a last resort and is skipped on ChatGPT/Perplexity (quote/attachment hosts)
@@ -923,24 +933,31 @@ class InputBoxHandler {
   }
 
   /**
-   * COMMENT: True when inserted prompt text appears to have landed in the field.
+   * COMMENT: True when the editor already contains the prompt (overwrite of the
+   * same text does not change the field, so "text changed" is the wrong test).
    * @param {HTMLElement} inputBox
    * @param {string} content
-   * @param {string} beforeText
    * @returns {boolean}
    */
-  static _insertLooksSuccessful(inputBox, content, beforeText) {
+  static _editorHasPrompt(inputBox, content) {
     const normalize = (text) => String(text || '').replace(/\s+/g, ' ').trim();
     const afterText = normalize(InputBoxHandler._readPlainText(inputBox));
     const snippet = normalize(content).slice(0, 48);
     if (!snippet) return false;
-
-    const normalizedBefore = normalize(beforeText);
-    if (afterText === normalizedBefore) return false;
     if (afterText.includes(snippet)) return true;
-
     const prefix = snippet.slice(0, Math.min(8, snippet.length));
     return prefix.length >= 4 && afterText.includes(prefix);
+  }
+
+  /**
+   * COMMENT: True when inserted prompt text appears to have landed in the field.
+   * @param {HTMLElement} inputBox
+   * @param {string} content
+   * @param {string} [_beforeText]
+   * @returns {boolean}
+   */
+  static _insertLooksSuccessful(inputBox, content, _beforeText) {
+    return InputBoxHandler._editorHasPrompt(inputBox, content);
   }
 
   /**
@@ -1683,14 +1700,10 @@ class InputBoxHandler {
     };
 
     const beforeText = InputBoxHandler._readPlainText(inputBox);
-    const nothingLanded = () => {
-      const normalize = (text) => String(text || '').replace(/\s+/g, ' ').trim();
-      return normalize(InputBoxHandler._readPlainText(inputBox)) === normalize(beforeText);
-    };
 
     try {
       await writeOnce();
-      if (nothingLanded()) await writeOnce();
+      if (!InputBoxHandler._insertLooksSuccessful(inputBox, content, beforeText)) await writeOnce();
       const success = InputBoxHandler._insertLooksSuccessful(inputBox, content, beforeText);
       if (success) {
         if (typeof PromptUIManager !== 'undefined' && PromptUIManager.hidePromptList) {
