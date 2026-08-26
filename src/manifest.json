@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "Open Prompt Manager - for AI Agents & Assistants",
-    "version": "3.0.2",
-    "description": "Open Source Prompt Manager for ChatGPT, Claude, Gemini, Grok and more.",
+    "version": "3.0.3",
+    "description": "Save, organize and reuse your best AI prompts across ChatGPT, Claude, Gemini, Grok and more. Free and open source.",
     "permissions": [
         "sidePanel",
         "storage",

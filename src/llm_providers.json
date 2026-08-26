@@ -2,7 +2,7 @@
   "llm_providers": [
     {
       "name": "ChatGPT",
-      "pattern": "*://chatgpt.com/*",
+      "pattern": "*://chatgpt.com/*,*://chat.openai.com/*",
       "url": "https://chatgpt.com",
       "icon_url": "https://cdn.oaistatic.com/assets/favicon-miwirzcw.ico",
       "element_selector": "#prompt-textarea, [data-testid='prompt-textarea'], div.ProseMirror[contenteditable='true'], textarea[data-id='root-textarea'], textarea[placeholder*='Message']"
@@ -44,10 +44,10 @@
     },
     {
       "name": "Grok",
-      "pattern": "*://grok.com/*",
+      "pattern": "*://grok.com/*,*://x.com/i/grok*,*://x.com/grok*,*://grok.x.com/*,*://twitter.com/i/grok*,*://twitter.com/grok*",
       "url": "https://grok.com",
       "icon_url": "https://www.google.com/s2/favicons?domain=grok.com&sz=32",
-      "element_selector": "textarea[placeholder*='know'], textarea[placeholder*='Ask'], div.ProseMirror[contenteditable='true'], [contenteditable='true'][role='textbox']"
+      "element_selector": "textarea[placeholder*='know'], textarea[placeholder*='Ask'], textarea[placeholder*='Grok'], div.ProseMirror[contenteditable='true'], [contenteditable='true'][role='textbox']"
     },
     {
       "name": "Microsoft Copilot",

@@ -24,6 +24,8 @@
    [01] Global Styles Injection
    COMMENT: Ensure base CSS is present before any UI is mounted.
    ============================================================================ */
+if (!window.__OPM_CONTENT_SCRIPT_LOADED__) {
+window.__OPM_CONTENT_SCRIPT_LOADED__ = true;
 const ensureStylesInjected = (() => {
   let injected = false;
   return () => {
@@ -2264,6 +2266,9 @@ const PromptMediator = (() => {
     state.lastPromptSelectAt = now;
 
     const processor = state.processor || PromptProcessor;
+    const knownSite = typeof window.InputBoxHandler?.isKnownProviderPage === 'function'
+      ? await window.InputBoxHandler.isKnownProviderPage()
+      : false;
     // COMMENT: Be resilient — if input box isn't ready yet, wait briefly before giving up
     let inputBox = await window.InputBoxHandler.getInputBox();
     if (!inputBox) {
@@ -2271,13 +2276,14 @@ const PromptMediator = (() => {
         inputBox = await window.InputBoxHandler.waitForInputBox(waitMs);
       } catch (_) {
         console.error('Input box not found.');
-        return { ok: false, error: 'no_input' };
+        return { ok: false, error: 'no_input', knownSite };
       }
     }
     const vars = processor.extractVariables(prompt.content);
     const listEl = qs(`#${SELECTORS.PROMPT_LIST}`);
     if (vars.length === 0) {
-      await window.InputBoxHandler.insertPrompt(inputBox, prompt.content, listEl);
+      const inserted = await window.InputBoxHandler.insertPrompt(inputBox, prompt.content, listEl);
+      if (!inserted) return { ok: false, error: 'insert_failed', knownSite };
       PromptUIManager.hidePromptList(listEl);
       return { ok: true };
     }
@@ -2303,7 +2309,11 @@ const PromptMediator = (() => {
           console.error('Input box not found.');
           return;
         }
-        await window.InputBoxHandler.insertPrompt(targetBox, processed, qs(`#${SELECTORS.PROMPT_LIST}`));
+        const inserted = await window.InputBoxHandler.insertPrompt(targetBox, processed, qs(`#${SELECTORS.PROMPT_LIST}`));
+        if (!inserted) {
+          console.error('Failed to insert variable prompt.');
+          return;
+        }
         const activeList = qs(`#${SELECTORS.PROMPT_LIST}`);
         if (activeList) PromptUIManager.hidePromptList(activeList);
         setTimeout(() => {
@@ -2316,11 +2326,16 @@ const PromptMediator = (() => {
     return { ok: true, needsVariables: true };
   };
 
-  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+  if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage && !window.__OPM_INSERT_LISTENER__) {
+    window.__OPM_INSERT_LISTENER__ = true;
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message?.type === 'OPM_SIDE_PANEL_STATE') {
         PromptUIManager.setSidePanelOpen(message.open)
-          .then(() => sendResponse({ ok: true }))
+          .then(() => {
+            if (message.open) teardownMutationObserver();
+            else setupMutationObserver();
+            sendResponse({ ok: true });
+          })
           .catch((error) => sendResponse({ ok: false, error: error?.message || 'side_panel_state_failed' }));
         return true;
       }
@@ -2331,7 +2346,7 @@ const PromptMediator = (() => {
             sendResponse({ ok: false, error: 'prompt_not_found' });
             return;
           }
-          const result = await handlePromptSelect(message.prompt, { waitMs: 2000 });
+          const result = await handlePromptSelect(message.prompt, { waitMs: 8000 });
           sendResponse(result || { ok: true });
         } catch (error) {
           sendResponse({ ok: false, error: error?.message || 'insert_failed' });
@@ -2340,11 +2355,18 @@ const PromptMediator = (() => {
       return true;
     });
   }
+  window.__OPM_CONTENT_READY__ = true;
 
   const ensurePromptSelectionListener = () => {
     if (state.promptSelectHandler) return;
     state.promptSelectHandler = handlePromptSelect;
     PromptUIManager.onPromptSelect(state.promptSelectHandler);
+  };
+
+  const teardownMutationObserver = () => {
+    if (!state.mutationObserver) return;
+    state.mutationObserver.disconnect();
+    state.mutationObserver = null;
   };
 
   const setupMutationObserver = () => {
@@ -2443,3 +2465,4 @@ const PromptMediator = (() => {
 
 /* Initialize the extension */
 setTimeout(() => { PromptMediator.bootstrap(PromptUIManager, PromptProcessor); }, 50);
+}

@@ -1,4 +1,5 @@
-import { getProviders } from './llm_providers.js';
+import { getProviderList } from './llm_providers.js';
+import { OPD_CATALOG_URL } from './opd/opdConstants.js';
 import {
   initOpdCatalogAccess,
   isAllowedOpdMessageOrigin,
@@ -18,13 +19,18 @@ import { getPrompts, onPromptsChanged, savePrompt } from './storage/promptStorag
 import { removePinnedForHostname } from './storage/pinnedInputStorage.js';
 import { removeLearnedForHostname } from './storage/learnedInputStorage.js';
 import { resolveProviderIconUrl } from './utils/providerIcons.js';
-import { expandOriginPatterns, hasAnyOriginPermission } from './utils/originPatterns.js';
+import {
+  expandOriginPatterns,
+  hasAnyOriginPermission,
+  urlMatchesOriginPattern,
+} from './utils/originPatterns.js';
 import {
   OPM_DEV_FORCE_ONBOARDING_STORAGE_KEY,
 } from './devFlags.js';
 
 // COMMENT: Single source of truth for dynamically injected content-script bundles
 const CONTENT_SCRIPT_FILES = [
+  'content.boot.js',
   'utils/promptInsertUtils.js',
   'handlers/inputBoxHandler.js',
   'content.styles.js',
@@ -32,13 +38,147 @@ const CONTENT_SCRIPT_FILES = [
   'content.js',
 ];
 
-// COMMENT: Pre-injection lock — closes the race before content.js sets __OPM_INITIALIZED__
+const REGISTERED_CONTENT_SCRIPT_ID = 'opm-page-content';
+const OPD_EXCLUDE_MATCHES = [
+  `${OPD_CATALOG_URL}/*`,
+  'https://www.openpromptdatabase.com/*',
+];
+
+// COMMENT: Pre-injection lock — closes the race before content.js sets ready/init flags
 const CONTENT_SCRIPT_INJECTION_FLAG = '__openPromptManagerInjected';
 const CONTENT_SCRIPT_INIT_FLAG = '__OPM_INITIALIZED__';
+const CONTENT_SCRIPT_READY_FLAG = '__OPM_CONTENT_READY__';
+
+let grantedOriginsCache = null;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function invalidateGrantedOriginsCache() {
+  grantedOriginsCache = null;
+}
 
 /**
- * COMMENT: Inject content scripts once per tab. Uses an in-page lock so concurrent
- * tab updates cannot load the bundle twice before bootstrap finishes.
+ * COMMENT: Host origins the user has granted. Cached until permissions change.
+ * @returns {Promise<string[]>}
+ */
+async function getGrantedOrigins() {
+  if (!grantedOriginsCache) {
+    const perms = await chrome.permissions.getAll();
+    grantedOriginsCache = Array.isArray(perms?.origins) ? perms.origins : [];
+  }
+  return grantedOriginsCache;
+}
+
+/**
+ * COMMENT: Origins we may inject the in-page UI into (granted hosts, minus the catalog).
+ * @returns {Promise<string[]>}
+ */
+async function getInjectableOrigins() {
+  const granted = await getGrantedOrigins();
+  if (granted.includes('<all_urls>')) return ['<all_urls>'];
+  return granted.filter((origin) => !/openpromptdatabase\.com/i.test(origin));
+}
+
+/**
+ * COMMENT: Register MV3 content scripts for granted hosts so new navigations inject
+ * without waking the service worker on every tab complete.
+ */
+async function syncRegisteredContentScripts() {
+  invalidateGrantedOriginsCache();
+  const matches = await getInjectableOrigins();
+  const existing = await chrome.scripting.getRegisteredContentScripts({
+    ids: [REGISTERED_CONTENT_SCRIPT_ID],
+  }).catch(() => []);
+
+  if (!matches.length) {
+    if (existing.length) {
+      await chrome.scripting.unregisterContentScripts({ ids: [REGISTERED_CONTENT_SCRIPT_ID] }).catch(() => {});
+    }
+    return;
+  }
+
+  const script = {
+    id: REGISTERED_CONTENT_SCRIPT_ID,
+    matches,
+    excludeMatches: OPD_EXCLUDE_MATCHES,
+    js: CONTENT_SCRIPT_FILES,
+    runAt: 'document_idle',
+    persistAcrossSessions: true,
+  };
+
+  try {
+    if (existing.length) {
+      await chrome.scripting.updateContentScripts([script]);
+    } else {
+      await chrome.scripting.registerContentScripts([script]);
+    }
+  } catch (error) {
+    try {
+      if (existing.length) {
+        await chrome.scripting.unregisterContentScripts({ ids: [REGISTERED_CONTENT_SCRIPT_ID] });
+      }
+      await chrome.scripting.registerContentScripts([script]);
+    } catch (retryError) {
+      console.error('Failed to sync registered content scripts:', error, retryError);
+    }
+  }
+}
+
+/**
+ * COMMENT: Poll until the content-script message listener is actually registered.
+ * @param {number} tabId
+ * @param {number} [timeoutMs]
+ * @returns {Promise<boolean>}
+ */
+async function waitForContentReady(tabId, timeoutMs = 3000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const [{ result }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (initFlag, readyFlag) => window[initFlag] === true || window[readyFlag] === true,
+        args: [CONTENT_SCRIPT_INIT_FLAG, CONTENT_SCRIPT_READY_FLAG],
+      });
+      if (result) return true;
+    } catch {
+      return false;
+    }
+    await sleep(50);
+  }
+  return false;
+}
+
+/**
+ * COMMENT: Reload a tab and wait for load complete. Needed for tabs that existed
+ * before the extension was installed or before host permission was granted.
+ * @param {number} tabId
+ * @param {number} [timeoutMs]
+ * @returns {Promise<boolean>}
+ */
+function reloadTabAndWait(tabId, timeoutMs = 20000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      resolve(ok);
+    };
+    const onUpdated = (updatedTabId, info) => {
+      if (updatedTabId !== tabId || info.status !== 'complete') return;
+      finish(true);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+    chrome.tabs.reload(tabId).catch(() => finish(false));
+  });
+}
+
+/**
+ * COMMENT: Inject content scripts once per tab. Lock means "in progress", not ready.
  * @param {number} tabId
  * @param {string} [tabUrl]
  * @returns {Promise<boolean>}
@@ -48,12 +188,13 @@ async function injectContentScriptsIfNeeded(tabId, tabUrl = '') {
   try {
     [{ result: injectionState }] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: (initFlag, lockFlag) => {
-        if (window[initFlag] === true || window[lockFlag]) return 'skip';
+      func: (initFlag, readyFlag, lockFlag) => {
+        if (window[initFlag] === true || window[readyFlag] === true) return 'ready';
+        if (window[lockFlag]) return 'pending';
         window[lockFlag] = true;
         return 'inject';
       },
-      args: [CONTENT_SCRIPT_INIT_FLAG, CONTENT_SCRIPT_INJECTION_FLAG],
+      args: [CONTENT_SCRIPT_INIT_FLAG, CONTENT_SCRIPT_READY_FLAG, CONTENT_SCRIPT_INJECTION_FLAG],
     });
   } catch (error) {
     const message = error?.message || '';
@@ -64,18 +205,25 @@ async function injectContentScriptsIfNeeded(tabId, tabUrl = '') {
     return false;
   }
 
-  if (injectionState === 'skip') {
-    return true;
-  }
+  if (injectionState === 'ready') return true;
+  if (injectionState === 'pending') return waitForContentReady(tabId);
 
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
       files: CONTENT_SCRIPT_FILES,
     });
-    return true;
+    const ready = await waitForContentReady(tabId);
+    if (!ready) {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (lockFlag) => { delete window[lockFlag]; },
+        args: [CONTENT_SCRIPT_INJECTION_FLAG],
+      }).catch(() => {});
+    }
+    return ready;
   } catch (injectionError) {
-    // COMMENT: Clear the lock when file injection fails so a later tab update can retry.
+    // COMMENT: Clear the lock when file injection fails so a later attempt can retry.
     await chrome.scripting.executeScript({
       target: { tabId },
       func: (lockFlag) => { delete window[lockFlag]; },
@@ -89,21 +237,8 @@ async function injectContentScriptsIfNeeded(tabId, tabUrl = '') {
     if (!message.includes('already injected')) {
       console.error(`Failed to inject script into tab ${tabId}${tabUrl ? ` (${tabUrl})` : ''}:`, injectionError);
     }
-    return false;
+    return waitForContentReady(tabId, 800);
   }
-}
-
-/**
- * COMMENT: Convert a Chrome origin pattern into a URL prefix regex.
- * @param {string} originPattern
- * @returns {RegExp}
- */
-function originPatternToRegex(originPattern) {
-  const regexPattern = originPattern
-    .replace(/\\/g, '\\\\')
-    .replace(/[.]/g, '\\.')
-    .replace(/[*]/g, '.*');
-  return new RegExp(`^${regexPattern}`);
 }
 
 /**
@@ -147,19 +282,6 @@ async function syncStorageAfterPermissionRevoke(originPatterns) {
 }
 
 /**
- * COMMENT: Inject content scripts into a tab when permitted and not already initialized.
- * @param {number} tabId
- * @param {string} url
- * @param {string} originPattern
- */
-async function injectIfPermittedAndNeeded(tabId, url, originPattern) {
-  const hasPermission = await chrome.permissions.contains({ origins: [originPattern] });
-  if (!hasPermission || !originPatternToRegex(originPattern).test(url)) return false;
-
-  return injectContentScriptsIfNeeded(tabId, url);
-}
-
-/**
  * COMMENT: Check whether the extension can script the given page URL.
  * @param {string} url
  * @returns {Promise<boolean>}
@@ -167,24 +289,9 @@ async function injectIfPermittedAndNeeded(tabId, url, originPattern) {
 async function tabHasScriptingPermission(url) {
   if (!url || !/^https?:/i.test(url)) return false;
 
-  if (await chrome.permissions.contains({ origins: ['<all_urls>'] })) {
-    return true;
-  }
-
-  try {
-    const { patternsArray } = await getProviders();
-    for (const originPattern of patternsArray) {
-      if (!originPatternToRegex(originPattern).test(url)) continue;
-      if (await chrome.permissions.contains({ origins: [originPattern] })) {
-        return true;
-      }
-    }
-
-    const { hostname } = new URL(url);
-    return chrome.permissions.contains({ origins: [`*://${hostname}/*`] });
-  } catch (_) {
-    return false;
-  }
+  const origins = await getGrantedOrigins();
+  if (origins.includes('<all_urls>')) return true;
+  return origins.some((origin) => urlMatchesOriginPattern(url, origin));
 }
 
 /**
@@ -234,6 +341,63 @@ async function runInsertPromptAction(tabId, prompt) {
   } catch (_) {
     return { ok: false, error: 'handler_missing' };
   }
+}
+
+/**
+ * COMMENT: Resolve a prompt payload from the side panel message or storage.
+ * @param {object} message
+ * @returns {Promise<object|null>}
+ */
+async function resolveInsertPayload(message) {
+  if (message.prompt?.content) {
+    return {
+      uuid: message.prompt.uuid,
+      title: message.prompt.title,
+      content: message.prompt.content,
+    };
+  }
+  const prompts = await getPrompts();
+  const stored = prompts.find((item) => item.uuid === message.localUuid);
+  if (!stored?.content) return null;
+  return {
+    uuid: stored.uuid,
+    title: stored.title,
+    content: stored.content,
+  };
+}
+
+/**
+ * COMMENT: Inject (reload once if Chrome blocks preexisting tabs) then run an action.
+ * @param {chrome.tabs.Tab} tab
+ * @param {(tab: chrome.tabs.Tab) => Promise<object>} actionFn
+ * @returns {Promise<object>}
+ */
+async function withContentScriptsOnTab(tab, actionFn) {
+  if (!tab?.id || !tab.url || !/^https?:/i.test(tab.url)) {
+    return { ok: false, error: 'no_active_tab' };
+  }
+  if (!(await tabHasScriptingPermission(tab.url))) {
+    return { ok: false, error: 'no_permission', url: tab.url };
+  }
+
+  await chrome.tabs.update(tab.id, { active: true }).catch(() => {});
+
+  const run = async (target) => {
+    if (!(await ensureContentScriptsForTab(target.id, target.url))) {
+      return { ok: false, error: 'inject_failed' };
+    }
+    return actionFn(target);
+  };
+
+  let result = await run(tab);
+  if (result?.ok || (result?.error !== 'inject_failed' && result?.error !== 'handler_missing')) {
+    return result;
+  }
+
+  if (!(await reloadTabAndWait(tab.id))) return result;
+  const updated = await chrome.tabs.get(tab.id).catch(() => null);
+  if (!updated?.id) return result;
+  return run(updated);
 }
 
 // COMMENT: Track which browser windows have the extension side panel open.
@@ -541,54 +705,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const tab = message.tabId
           ? await chrome.tabs.get(message.tabId)
-          : (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+          : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
 
-        if (!tab?.id || !tab.url || !/^https?:/i.test(tab.url)) {
-          sendResponse({ ok: false, error: 'no_active_tab' });
-          return;
-        }
-
-        if (!(await tabHasScriptingPermission(tab.url))) {
-          sendResponse({ ok: false, error: 'no_permission', url: tab.url });
-          return;
-        }
-
-        if (!(await ensureContentScriptsForTab(tab.id, tab.url))) {
-          sendResponse({ ok: false, error: 'inject_failed' });
-          return;
-        }
-
-        let payload = message.prompt?.content
-          ? {
-              uuid: message.prompt.uuid,
-              title: message.prompt.title,
-              content: message.prompt.content,
-            }
-          : null;
+        const payload = await resolveInsertPayload(message);
         if (!payload) {
-          const prompts = await getPrompts();
-          const stored = prompts.find((item) => item.uuid === message.localUuid);
-          if (!stored?.content) {
-            sendResponse({ ok: false, error: 'prompt_not_found' });
-            return;
-          }
-          payload = {
-            uuid: stored.uuid,
-            title: stored.title,
-            content: stored.content,
-          };
+          sendResponse({ ok: false, error: 'prompt_not_found' });
+          return;
         }
 
-        let result = { ok: false, error: 'handler_missing' };
-        for (let attempt = 0; attempt < 4; attempt += 1) {
-          if (attempt > 0) {
-            await ensureContentScriptsForTab(tab.id, tab.url);
-            await new Promise((resolve) => setTimeout(resolve, 60 * attempt));
+        const result = await withContentScriptsOnTab(tab, async (target) => {
+          let insertResult = { ok: false, error: 'handler_missing' };
+          for (let attempt = 0; attempt < 6; attempt += 1) {
+            if (attempt > 0) {
+              await ensureContentScriptsForTab(target.id, target.url);
+              await sleep(80 * attempt);
+            }
+            insertResult = await runInsertPromptAction(target.id, payload);
+            if (insertResult?.ok) break;
+            if (insertResult?.error !== 'handler_missing') break;
           }
-          result = await runInsertPromptAction(tab.id, payload);
-          if (result?.ok) break;
-          if (result?.error !== 'handler_missing') break;
-        }
+          return insertResult;
+        });
         sendResponse(result);
       } catch (error) {
         sendResponse({ ok: false, error: error?.message || 'insert_failed' });
@@ -603,34 +740,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try {
       const tab = message.tabId
         ? await chrome.tabs.get(message.tabId)
-        : (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
-
-      if (!tab?.id || !tab.url || !/^https?:/i.test(tab.url)) {
-        sendResponse({ ok: false, error: 'no_active_tab' });
-        return;
-      }
-
-      if (!(await tabHasScriptingPermission(tab.url))) {
-        sendResponse({ ok: false, error: 'no_permission', url: tab.url });
-        return;
-      }
-
-      if (!(await ensureContentScriptsForTab(tab.id, tab.url))) {
-        sendResponse({ ok: false, error: 'inject_failed' });
-        return;
-      }
+        : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
 
       const pinExtras = message.pendingPrompt ? { pendingPrompt: message.pendingPrompt } : {};
-      let result = { ok: false, error: 'handler_missing' };
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        if (attempt > 0) {
-          await ensureContentScriptsForTab(tab.id, tab.url);
-          await new Promise((resolve) => setTimeout(resolve, 60 * attempt));
+      const result = await withContentScriptsOnTab(tab, async (target) => {
+        let pinResult = { ok: false, error: 'handler_missing' };
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          if (attempt > 0) {
+            await ensureContentScriptsForTab(target.id, target.url);
+            await sleep(80 * attempt);
+          }
+          pinResult = await runPinInputAction(target.id, message.action || 'status', pinExtras);
+          if (pinResult?.ok || pinResult?.error === 'picker_already_active') break;
+          if (pinResult?.error !== 'handler_missing') break;
         }
-        result = await runPinInputAction(tab.id, message.action || 'status', pinExtras);
-        if (result?.ok || result?.error === 'picker_already_active') break;
-        if (result?.error !== 'handler_missing') break;
-      }
+        return pinResult;
+      });
       sendResponse(result);
     } catch (error) {
       sendResponse({ ok: false, error: error?.message || 'pin_action_failed' });
@@ -654,6 +779,7 @@ chrome.runtime.onInstalled.addListener(function (details) {
   if (shouldRebuild) {
     (async () => {
       try {
+        await syncRegisteredContentScripts();
         const providersMap = await checkProviderPermissions();
         console.log('Providers Map:', providersMap);
         // COMMENT: Never overwrite storage with null when permission checks fail transiently
@@ -669,6 +795,10 @@ chrome.runtime.onInstalled.addListener(function (details) {
 
 
 chrome.permissions.onRemoved.addListener((permissions) => {
+  invalidateGrantedOriginsCache();
+  syncRegisteredContentScripts().catch((error) => {
+    console.error('Failed to sync content scripts after permission revoke:', error);
+  });
   if (!permissions?.origins?.length) return;
   syncStorageAfterPermissionRevoke(permissions.origins).catch((error) => {
     console.error('Failed to sync storage after permission revoke:', error);
@@ -677,17 +807,26 @@ chrome.permissions.onRemoved.addListener((permissions) => {
 
 chrome.permissions.onAdded.addListener(async (permissions) => {
   console.log('Permissions added:', permissions.origins);
+  invalidateGrantedOriginsCache();
+  await syncRegisteredContentScripts().catch((error) => {
+    console.error('Failed to sync content scripts after permission grant:', error);
+  });
   if (permissions.origins && permissions.origins.length > 0) {
-    // Iterate through the newly granted origins
     for (const origin of permissions.origins) {
+      if (/openpromptdatabase\.com/i.test(origin)) continue;
       try {
-        // Find tabs that match the newly granted origin
-        const tabs = await chrome.tabs.query({ url: origin });
+        const queryUrl = origin === '<all_urls>' ? ['http://*/*', 'https://*/*'] : origin;
+        const tabs = await chrome.tabs.query({ url: queryUrl });
         console.log(`Found ${tabs.length} tabs matching ${origin}`);
 
         for (const tab of tabs) {
+          if (!tab?.id || !tab.url) continue;
           console.log(`Injecting scripts into tab ${tab.id} (${tab.url})`);
-          await injectContentScriptsIfNeeded(tab.id, tab.url);
+          const injected = await injectContentScriptsIfNeeded(tab.id, tab.url);
+          // COMMENT: Tabs open before install/grant often cannot be scripted until they reload
+          if (!injected && tab.active) {
+            await reloadTabAndWait(tab.id);
+          }
         }
       } catch (err) {
         console.error(`Failed to query tabs or inject script for origin ${origin}:`, err);
@@ -697,61 +836,30 @@ chrome.permissions.onAdded.addListener(async (permissions) => {
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // Inject scripts when a tab finishes loading and has a URL
-  if (changeInfo.status === 'complete' && tab.url) {
-    try {
-      if (!/^https?:/i.test(tab.url)) return;
-
-      const canScript = await tabHasScriptingPermission(tab.url);
-      if (canScript) {
-        await ensureContentScriptsForTab(tabId, tab.url);
-      } else {
-        const { patternsArray } = await getProviders();
-        for (const originPattern of patternsArray) {
-          const injected = await injectIfPermittedAndNeeded(tabId, tab.url, originPattern);
-          if (injected) break;
-        }
-      }
-
-      // COMMENT: New documents re-init with sidebarOpen=false — hide the launcher again if the side panel is still open
-      if (tab.windowId && sidePanelOpenWindows.has(tab.windowId) && (await tabHasScriptingPermission(tab.url))) {
-        try {
-          await chrome.tabs.sendMessage(tabId, { type: 'OPM_SIDE_PANEL_STATE', open: true });
-        } catch (_) {
-          // Content script may not be listening yet on this navigation
-        }
-      }
-    } catch (err) {
-      // Avoid logging errors for URLs like 'chrome://extensions/'
-      if (tab.url && !tab.url.startsWith('chrome://')) {
-        console.error(`Error during tab update processing for ${tab.url}:`, err);
-      }
-    }
+  // COMMENT: Registered content scripts handle injection. Only re-hide the in-page
+  // launcher when this window's side panel is still open after a navigation.
+  if (changeInfo.status !== 'complete' || !tab.url || !/^https?:/i.test(tab.url)) return;
+  if (!tab.windowId || !sidePanelOpenWindows.has(tab.windowId)) return;
+  if (!(await tabHasScriptingPermission(tab.url))) return;
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'OPM_SIDE_PANEL_STATE', open: true });
+  } catch (_) {
+    // Content script may not be listening yet on this navigation
   }
 });
 
 async function checkProviderPermissions() {
   try {
-    // Fetch the providers list (use absolute extension URL for reliability)
-    const response = await fetch(chrome.runtime.getURL('llm_providers.json'));
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const providersData = await response.json();
-
+    const providersList = await getProviderList();
     const providersMap = {};
 
     // COMMENT: Normalize icon URLs via shared helper so local and remote paths resolve consistently.
-    for (const providerInfo of providersData.llm_providers) {
-      // Get provider name, URL pattern, and provider URL
+    for (const providerInfo of providersList) {
       const providerName = providerInfo.name;
       const urlPattern = providerInfo.pattern;
       const providerUrl = providerInfo.url;
-
-      // COMMENT: Grant if any listed origin is allowed (e.g. www + apex Perplexity)
       const hasPermission = await hasAnyOriginPermission(urlPattern);
 
-      // Store the result (permission status and URL) in providersMap
       providersMap[providerName] = {
         hasPermission: hasPermission ? 'Yes' : 'No',
         urlPattern: urlPattern,
@@ -763,7 +871,6 @@ async function checkProviderPermissions() {
     return providersMap;
   } catch (error) {
     console.error('Error checking permissions:', error);
-    // COMMENT: Return an empty object so callers never persist null into storage
     return {};
   }
 }
@@ -823,9 +930,9 @@ chrome.runtime.onInstalled.addListener(() => {
 // On startup, also create the context menu (for reloads)
 chrome.runtime.onStartup.addListener(() => {
   createPromptContextMenu();
-  // COMMENT: Refresh providers map on startup so icon changes and new providers propagate without reinstall
   (async () => {
     try {
+      await syncRegisteredContentScripts();
       const providersMap = await checkProviderPermissions();
       if (providersMap && typeof providersMap === 'object') {
         await chrome.storage.local.set({ aiProvidersMap: providersMap });
@@ -836,10 +943,13 @@ chrome.runtime.onStartup.addListener(() => {
   })();
 });
 
-// Listen for prompts changes via the unified API and update the context menu
+// COMMENT: Debounce menu rebuilds when prompts change in bursts (import / reorder)
+let contextMenuRebuildTimer = null;
 onPromptsChanged(() => {
-  // COMMENT: Regenerate the context menu whenever prompts change
-  createPromptContextMenu();
+  clearTimeout(contextMenuRebuildTimer);
+  contextMenuRebuildTimer = setTimeout(() => {
+    createPromptContextMenu();
+  }, 200);
 });
 
 // When a context menu item is clicked
@@ -882,17 +992,32 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const uuid = info.menuItemId.replace('prompt-', '');
     const prompts = await getAllPrompts();
     const prompt = prompts.find(p => p.uuid === uuid);
-    if (prompt) {
-      // Write the prompt content to the clipboard
-      try {
-        await navigator.clipboard.writeText(prompt.content);
-      } catch (err) {
-        chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: (text) => navigator.clipboard.writeText(text),
-          args: [prompt.content]
+    if (!prompt?.content) return;
+
+    const targetTab = tab?.id
+      ? tab
+      : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+    if (!targetTab?.id) return;
+
+    const result = await withContentScriptsOnTab(targetTab, async (target) => {
+      let insertResult = { ok: false, error: 'handler_missing' };
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        if (attempt > 0) {
+          await ensureContentScriptsForTab(target.id, target.url);
+          await sleep(80 * attempt);
+        }
+        insertResult = await runInsertPromptAction(target.id, {
+          uuid: prompt.uuid,
+          title: prompt.title,
+          content: prompt.content,
         });
+        if (insertResult?.ok) break;
+        if (insertResult?.error !== 'handler_missing') break;
       }
+      return insertResult;
+    });
+    if (!result?.ok) {
+      console.error('Context-menu insert failed:', result?.error || 'insert_failed');
     }
   }
 });
@@ -916,5 +1041,8 @@ async function clearStaleDevOnboardingFlag() {
 }
 
 clearStaleDevOnboardingFlag();
+syncRegisteredContentScripts().catch((error) => {
+  console.warn('Failed to sync registered content scripts on worker start:', error);
+});
 
 // --- END CONTEXT MENU ---

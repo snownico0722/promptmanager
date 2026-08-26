@@ -11,6 +11,46 @@ export function expandOriginPatterns(pattern) {
 }
 
 /**
+ * Convert a Chrome origin pattern into a URL prefix regex.
+ * @param {string} originPattern
+ * @returns {RegExp}
+ */
+export function originPatternToRegex(originPattern) {
+  const regexPattern = String(originPattern || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/[.]/g, '\\.')
+    .replace(/[*]/g, '.*');
+  return new RegExp(`^${regexPattern}`);
+}
+
+/**
+ * True when a page URL matches a Chrome origin / match pattern.
+ * @param {string} url
+ * @param {string} originPattern
+ * @returns {boolean}
+ */
+export function urlMatchesOriginPattern(url, originPattern) {
+  if (!url || !originPattern) return false;
+  if (originPattern === '<all_urls>') return /^https?:/i.test(String(url));
+  try {
+    return originPatternToRegex(originPattern).test(String(url));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True when a page URL matches any of the given origin patterns.
+ * @param {string} url
+ * @param {string[]} patterns
+ * @returns {boolean}
+ */
+export function urlMatchesAnyOriginPattern(url, patterns) {
+  if (!Array.isArray(patterns) || patterns.length === 0) return false;
+  return patterns.some((pattern) => urlMatchesOriginPattern(url, pattern));
+}
+
+/**
  * True when any of the origin patterns is already granted.
  * @param {string|string[]} patternOrList
  * @returns {Promise<boolean>}

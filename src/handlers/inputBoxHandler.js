@@ -4,6 +4,7 @@
 /**
  * Class to handle input box detection and interactions on supported websites.
  */
+if (!window.InputBoxHandler) {
 class InputBoxHandler {
   // COMMENT: Cache provider config so waitForInputBox polling does not re-fetch JSON every 500ms
   static _providersCache = null;
@@ -309,6 +310,38 @@ class InputBoxHandler {
   }
 
   /**
+   * COMMENT: Focus and click the composer so Lexical/ProseMirror accept insertText.
+   * @param {HTMLElement} inputBox
+   */
+  static _activateComposer(inputBox) {
+    if (!(inputBox instanceof HTMLElement)) return;
+    InputBoxHandler._prepareGeminiInput(inputBox);
+    if (document.activeElement !== inputBox) {
+      try { inputBox.click(); } catch (_) { /* ignore */ }
+    }
+    inputBox.focus();
+  }
+
+  /**
+   * COMMENT: True when this page matches a built-in assistant origin.
+   * @returns {Promise<boolean>}
+   */
+  static async isKnownProviderPage() {
+    const providers = await InputBoxHandler._loadProviders();
+    const href = window.location.href;
+    return providers.some((provider) => {
+      if (!provider.pattern) return false;
+      return String(provider.pattern).split(',').map((item) => item.trim()).filter(Boolean).some((originPattern) => {
+        try {
+          return new RegExp(originPattern.replace(/\*/g, '.*'), 'i').test(href);
+        } catch {
+          return false;
+        }
+      });
+    });
+  }
+
+  /**
    * COMMENT: Ensure Gemini expands and focuses the main composer before inserting text.
    * @param {HTMLElement} inputBox
    */
@@ -362,6 +395,45 @@ class InputBoxHandler {
     );
     if (nested instanceof HTMLElement && nested !== inputBox) return nested;
     return inputBox;
+  }
+
+  /**
+   * COMMENT: True only for ChatGPT's current ProseMirror composer. Keep this separate
+   * from Perplexity so its insertion behavior is unchanged.
+   * @param {HTMLElement} inputBox
+   * @returns {boolean}
+   */
+  static _isChatGPTProseMirror(inputBox) {
+    const host = String(window.location.hostname || '').toLowerCase();
+    const isChatGPT = /(?:^|\.)chatgpt\.com$|(?:^|\.)chat\.openai\.com$/.test(host);
+    return isChatGPT && inputBox instanceof HTMLElement && inputBox.isContentEditable
+      && (inputBox.id === 'prompt-textarea' || inputBox.classList.contains('ProseMirror'));
+  }
+
+  /**
+   * COMMENT: Insert multiline plain text into ChatGPT as one ProseMirror transaction.
+   * Avoids synthetic paste (quote/file) and insertText flattening newlines.
+   * @param {HTMLElement} inputBox
+   * @param {string} content
+   * @returns {boolean}
+   */
+  static _insertChatGPTMultilineHtml(inputBox, content) {
+    if (!InputBoxHandler._isChatGPTProseMirror(inputBox) || !content.includes('\n')) return false;
+    const before = InputBoxHandler._readPlainText(inputBox);
+    const escaped = String(content)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const html = `<p>${escaped.replace(/\r\n?|\n/g, '<br>')}</p>`;
+    try {
+      if (!document.execCommand('insertHTML', false, html)) return false;
+    } catch (_) {
+      return false;
+    }
+    const after = InputBoxHandler._readPlainText(inputBox);
+    return InputBoxHandler._textGained(before, after, content);
   }
 
   /**
@@ -457,16 +529,39 @@ class InputBoxHandler {
    * @returns {boolean}
    */
   static _insertLineBreak(inputBox) {
+    const changed = (beforeText, beforeHtml) => {
+      const afterText = InputBoxHandler._readPlainText(inputBox);
+      const afterHtml = inputBox.isContentEditable ? inputBox.innerHTML : '';
+      return afterText !== beforeText || afterHtml !== beforeHtml;
+    };
+
+    let beforeText = InputBoxHandler._readPlainText(inputBox);
+    let beforeHtml = inputBox.isContentEditable ? inputBox.innerHTML : '';
     try {
-      if (document.execCommand('insertLineBreak', false, null)) return true;
+      if (document.execCommand('insertLineBreak', false, null) && changed(beforeText, beforeHtml)) return true;
     } catch (_) {
       // ignore
     }
+
+    beforeText = InputBoxHandler._readPlainText(inputBox);
+    beforeHtml = inputBox.isContentEditable ? inputBox.innerHTML : '';
     try {
-      if (document.execCommand('insertParagraph', false, null)) return true;
+      if (document.execCommand('insertParagraph', false, null) && changed(beforeText, beforeHtml)) return true;
     } catch (_) {
       // ignore
     }
+
+    // COMMENT: ChatGPT-specific hard-break fallback. Editing command, not a paste event.
+    if (InputBoxHandler._isChatGPTProseMirror(inputBox)) {
+      beforeText = InputBoxHandler._readPlainText(inputBox);
+      beforeHtml = inputBox.innerHTML;
+      try {
+        if (document.execCommand('insertHTML', false, '<br>') && changed(beforeText, beforeHtml)) return true;
+      } catch (_) {
+        // ignore
+      }
+    }
+
     try {
       const before = InputBoxHandler._readPlainText(inputBox);
       inputBox.dispatchEvent(new InputEvent('beforeinput', {
@@ -562,17 +657,21 @@ class InputBoxHandler {
     let inserted = false;
 
     if (content.includes('\n')) {
-      inserted = true;
-      const lines = content.split('\n');
-      for (let i = 0; i < lines.length; i += 1) {
-        if (lines[i]) {
-          if (!InputBoxHandler._insertTextOnce(editor, lines[i])) inserted = false;
-        }
-        if (i < lines.length - 1) {
-          InputBoxHandler._insertLineBreak(editor);
+      // COMMENT: ChatGPT ProseMirror — one insertHTML transaction so newlines are not flattened
+      inserted = InputBoxHandler._insertChatGPTMultilineHtml(editor, content);
+      if (!inserted) {
+        inserted = true;
+        const lines = content.split('\n');
+        for (let i = 0; i < lines.length; i += 1) {
+          if (lines[i]) {
+            if (!InputBoxHandler._insertTextOnce(editor, lines[i])) inserted = false;
+          }
+          if (i < lines.length - 1) {
+            if (!InputBoxHandler._insertLineBreak(editor)) inserted = false;
+          }
         }
       }
-      InputBoxHandler._insertTextOnce(editor, trailing);
+      if (!InputBoxHandler._insertTextOnce(editor, trailing)) inserted = false;
       if (!InputBoxHandler._textGained(beforeInsertionText, InputBoxHandler._readPlainText(editor), content)) {
         inserted = false;
       }
@@ -1471,21 +1570,16 @@ class InputBoxHandler {
    * @param {HTMLElement} inputBox - The input box element.
    * @param {string} content - The prompt content to insert.
    * @param {HTMLElement} promptList - The prompt list element to hide after insertion.
+   * @returns {Promise<boolean>}
    */
   static async insertPrompt(inputBox, content, promptList) {
     if (!inputBox || !content) {
       console.error('Missing required parameters for insertPrompt', { inputBox, content });
-      return;
+      return false;
     }
-    InputBoxHandler._prepareGeminiInput(inputBox);
-    inputBox.focus();
-    const beforeText = InputBoxHandler._readPlainText(inputBox);
-    const finishInsert = () => {
-      PromptUIManager.hidePromptList(promptList);
-      InputBoxHandler._maybeLearnInput(inputBox, content, beforeText).catch(() => {});
-    };
-    try {
-      // COMMENT: Read setting that controls append vs overwrite behavior
+
+    const writeOnce = async () => {
+      InputBoxHandler._activateComposer(inputBox);
       const disableOverwrite = await new Promise(resolve => {
         try {
           chrome.storage.local.get('disableOverwrite', data => {
@@ -1497,10 +1591,8 @@ class InputBoxHandler {
 
       if (inputBox.isContentEditable) {
         const editor = InputBoxHandler._resolveRichEditor(inputBox);
-        // COMMENT: Nested ProseMirror/Lexical (ChatGPT/Perplexity wrappers) must use the rich path
         if (InputBoxHandler._isRichEditor(editor) || InputBoxHandler._isRichEditor(inputBox)) {
           InputBoxHandler._insertViaExecCommand(editor, content, disableOverwrite);
-          finishInsert();
           return;
         }
 
@@ -1530,26 +1622,23 @@ class InputBoxHandler {
             const prefix = needsSpace ? ' ' : '';
             inputBox.appendChild(document.createTextNode(prefix + content));
           }
+        } else if (content.includes('\n')) {
+          const lines = content.split('\n');
+          inputBox.innerHTML = '';
+          lines.forEach((line, index) => {
+            if (line.trim()) {
+              const p = document.createElement('p');
+              p.textContent = line;
+              inputBox.appendChild(p);
+            } else if (index < lines.length - 1) {
+              const p = document.createElement('p');
+              const br = document.createElement('br');
+              p.appendChild(br);
+              inputBox.appendChild(p);
+            }
+          });
         } else {
-          // COMMENT: Write once. Do not paste then also set textContent — that duplicates on ChatGPT/Perplexity.
-          if (content.includes('\n')) {
-            const lines = content.split('\n');
-            inputBox.innerHTML = '';
-            lines.forEach((line, index) => {
-              if (line.trim()) {
-                const p = document.createElement('p');
-                p.textContent = line;
-                inputBox.appendChild(p);
-              } else if (index < lines.length - 1) {
-                const p = document.createElement('p');
-                const br = document.createElement('br');
-                p.appendChild(br);
-                inputBox.appendChild(p);
-              }
-            });
-          } else {
-            inputBox.textContent = content;
-          }
+          inputBox.textContent = content;
         }
 
         inputBox.appendChild(document.createTextNode('  '));
@@ -1569,7 +1658,10 @@ class InputBoxHandler {
         }
 
         InputBoxHandler._collapseDuplicateIfNeeded(inputBox, content, beforeInsertionText, disableOverwrite);
-      } else if (inputBox.tagName.toLowerCase() === 'textarea' || inputBox.tagName.toLowerCase() === 'input') {
+        return;
+      }
+
+      if (inputBox.tagName.toLowerCase() === 'textarea' || inputBox.tagName.toLowerCase() === 'input') {
         if (disableOverwrite) {
           const existing = inputBox.value || '';
           const needsSpace = existing && !/\s$/.test(existing);
@@ -1584,13 +1676,32 @@ class InputBoxHandler {
           inputBox.style.height = 'auto';
           inputBox.style.height = `${inputBox.scrollHeight}px`;
         }
-      } else {
-        console.error('Unknown input box type.', { inputBox });
         return;
       }
-      finishInsert();
+
+      console.error('Unknown input box type.', { inputBox });
+    };
+
+    const beforeText = InputBoxHandler._readPlainText(inputBox);
+    const nothingLanded = () => {
+      const normalize = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+      return normalize(InputBoxHandler._readPlainText(inputBox)) === normalize(beforeText);
+    };
+
+    try {
+      await writeOnce();
+      if (nothingLanded()) await writeOnce();
+      const success = InputBoxHandler._insertLooksSuccessful(inputBox, content, beforeText);
+      if (success) {
+        if (typeof PromptUIManager !== 'undefined' && PromptUIManager.hidePromptList) {
+          PromptUIManager.hidePromptList(promptList);
+        }
+        InputBoxHandler._maybeLearnInput(inputBox, content, beforeText).catch(() => {});
+      }
+      return success;
     } catch (error) {
       console.error('Error inserting prompt:', error, { content, inputBox, promptList });
+      return false;
     }
   }
 
@@ -1613,7 +1724,8 @@ class InputBoxHandler {
 window.InputBoxHandler = InputBoxHandler;
 
 // COMMENT: Route pin-picker actions from the service worker through the content-script world
-if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage && !window.__OPM_PIN_LISTENER__) {
+  window.__OPM_PIN_LISTENER__ = true;
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== 'OPM_PIN_INPUT_CONTENT') return undefined;
 
@@ -1639,5 +1751,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
 
     return true;
   });
+}
+
 }
 

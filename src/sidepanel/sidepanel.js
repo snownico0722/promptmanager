@@ -292,8 +292,10 @@ const scheduleActiveTabAssistantsRefresh = debounceSidepanel(refreshActiveTabAss
  * @returns {Promise<chrome.tabs.Tab|null>}
  */
 async function getActiveBrowserTab() {
-  const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  return tabs[0] || null;
+  const current = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (current[0]) return current[0];
+  const lastFocused = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return lastFocused[0] || null;
 }
 
 /**
@@ -386,7 +388,9 @@ async function insertPromptIntoActiveTab(prompt) {
 
   if (result?.ok) return true;
 
-  if (result?.error === 'no_permission' || result?.error === 'no_input') {
+  const shouldPickField = result?.error === 'no_permission'
+    || (result?.error === 'no_input' && result?.knownSite === false);
+  if (shouldPickField) {
     const pickerResult = await startInputPickerForTab(tab, { pendingPrompt });
     if (pickerResult?.error === 'permission_denied') {
       showSidepanelToast('Allow site access for this page to pick its input field.', { error: true });
@@ -407,19 +411,21 @@ async function insertPromptIntoActiveTab(prompt) {
 
 function mapInsertError(code) {
   switch (code) {
-    case 'no_permission':
-      return 'This page is not enabled. Grant it under Assistants, then try again.';
-    case 'no_input':
-      return 'No chat input found on this page.';
-    case 'no_active_tab':
-      return 'Open a chat site, then click a prompt to insert it.';
-    case 'prompt_not_found':
-      return 'That prompt could not be found. Refresh the side panel and try again.';
-    case 'inject_failed':
-    case 'handler_missing':
-      return 'Could not reach this page. Reload the tab and try again.';
-    default:
-      return 'Could not insert this prompt. Try again.';
+  case 'no_permission':
+    return 'This page is not enabled. Grant it under Assistants, then try again.';
+  case 'no_input':
+    return 'No chat input found on this page. Wait for it to finish loading, then try again.';
+  case 'no_active_tab':
+    return 'Open a chat site, then click a prompt to insert it.';
+  case 'prompt_not_found':
+    return 'That prompt could not be found. Refresh the side panel and try again.';
+  case 'inject_failed':
+  case 'handler_missing':
+    return 'Could not reach this page. Reload the tab and try again.';
+  case 'insert_failed':
+    return 'The prompt did not land in the chat input. Click the input, then try again.';
+  default:
+    return 'Could not insert this prompt. Try again.';
   }
 }
 
@@ -1901,22 +1907,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Add or update prompt
-  form.addEventListener('submit', event => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const title = titleInput.value.trim();
     const content = contentInput.value;
     const tags = formTagInput ? formTagInput.getTags() : [];
 
-    if (uuidInput.value === '') {
-      // COMMENT: Add new prompt via unified manager
-      PromptStorage.savePrompt({ title, content, tags }).catch(console.error);
-    } else {
-      // COMMENT: Update existing prompt by uuid via unified manager
-      PromptStorage.updatePrompt(uuidInput.value, { title, content, tags }).catch(console.error);
+    if (!title || !String(content).trim()) {
+      showSidepanelToast('Add a title and prompt text before saving.', { error: true });
+      return;
     }
 
-    // Reset form and return to the prompt list
-    resetPromptForm();
+    try {
+      if (uuidInput.value === '') {
+        await PromptStorage.savePrompt({ title, content, tags });
+      } else {
+        await PromptStorage.updatePrompt(uuidInput.value, { title, content, tags });
+      }
+      resetPromptForm();
+    } catch (error) {
+      console.error(error);
+      showSidepanelToast(error?.message || 'Could not save this prompt.', { error: true });
+    }
   });
 
   // Back / cancel from composer

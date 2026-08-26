@@ -60,7 +60,19 @@ export default [
     rules: baseRules,
   },
   {
-    files: ['src/content.js', 'src/content.shared.js'],
+    files: ['src/content.js'],
+    languageOptions: {
+      globals: contentScriptGlobals,
+      ecmaVersion: 2022,
+      sourceType: 'script',
+    },
+    rules: {
+      ...classicScriptRules,
+      indent: 'off',
+    },
+  },
+  {
+    files: ['src/content.shared.js'],
     languageOptions: {
       globals: contentScriptGlobals,
       ecmaVersion: 2022,
@@ -81,7 +93,7 @@ export default [
     rules: classicScriptRules,
   },
   {
-    files: ['src/content.styles.js', 'src/handlers/inputBoxHandler.js'],
+    files: ['src/content.styles.js', 'src/content.boot.js'],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -94,6 +106,24 @@ export default [
       sourceType: 'script',
     },
     rules: classicScriptRules,
+  },
+  {
+    files: ['src/handlers/inputBoxHandler.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.webextensions,
+        chrome: 'readonly',
+        PromptUIManager: 'readonly',
+        PromptInsertUtils: 'readonly',
+      },
+      ecmaVersion: 2022,
+      sourceType: 'script',
+    },
+    rules: {
+      ...classicScriptRules,
+      indent: 'off',
+    },
   },
   {
     ignores: [

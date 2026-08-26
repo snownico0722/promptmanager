@@ -95,8 +95,9 @@ export async function getCatalogPrompt(catalogId) {
  */
 export async function notifyPromptImported(catalogId) {
   try {
-    const base = await getOpdApiBaseUrl();
-    await fetch(`${base}/v1/prompts/${encodeURIComponent(catalogId)}/import`, {
+    // Same client as publish: sends X-OPD-Token when present. Catalog still
+    // accepts unauthenticated pings from older builds.
+    await opdFetch(`/v1/prompts/${encodeURIComponent(catalogId)}/import`, {
       method: 'POST',
     });
   } catch {

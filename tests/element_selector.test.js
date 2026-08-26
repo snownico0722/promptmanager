@@ -1,11 +1,10 @@
 // List of excluded providers by name for testing as they require further steps
 const EXCLUDED_PROVIDERS = [
-    // Example: 'ChatGPT', 'Claude', 'Gemini'
+    // Login walls / extra onboarding that make the live selector crawl brittle
     "NotebookLM",
     "Claude",
     "Poe",
     "DeepSeek",
-    "Grok @ x.com",
     "OpenAI Playground",
     "ChatLLM",
     "Google AI Studio"

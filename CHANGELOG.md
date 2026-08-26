@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [3.0.3] - 2026-08-26
+
+### Fixed
+
+- First install no longer needs a manual page refresh before insert: content scripts register for granted origins, wait until the insert listener is ready, and reload a preexisting tab once if Chrome cannot inject into it.
+- Multiline prompts keep line breaks in ChatGPT's ProseMirror composer (one `insertHTML` write, not flattened `insertText` or paste-as-quote).
+- Side-panel insert waits longer for the composer and fails visibly if the text did not land.
+- Known assistants no longer open the custom-site field picker when the composer is missing.
+- Right-clicking a saved prompt inserts it into the page instead of copying.
+- Side-panel insert targets the window the panel is attached to.
+- ChatGPT on `chat.openai.com` and Grok on `x.com` / `twitter.com` are recognized.
+
+### Changed
+
+- Granted origins use `chrome.scripting.registerContentScripts` instead of injecting on every tab update.
+- The in-page mutation observer disconnects while the side panel is open.
+
 ## [3.0.2] - 2026-08-20
 
 ### Fixed
