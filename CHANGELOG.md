@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog],
 and this project adheres to [Semantic Versioning].
 
+## [Unreleased]
+
+### Fixed
+
+- Perplexity's Lexical composer no longer inserts the same prompt three times. The extension now writes once with `execCommand('insertText')`, waits for Lexical to flush before retrying, and collapses 3+ copies if they still appear.
+
 ## [3.0.5] - 2026-08-27
 
 ### Fixed

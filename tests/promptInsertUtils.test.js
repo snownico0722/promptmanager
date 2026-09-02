@@ -29,6 +29,12 @@ describe('prompt insert duplicate collapse', () => {
     expect(collapseDuplicatedPromptText(`${prompt}\n${prompt}`, prompt)).toBe(prompt);
   });
 
+  test('collapses three or more Lexical retry copies', () => {
+    expect(isQuotedDuplicatePrompt(`${prompt}${prompt}${prompt}`, prompt)).toBe(true);
+    expect(collapseDuplicatedPromptText(`${prompt}${prompt}${prompt}`, prompt)).toBe(prompt);
+    expect(collapseDuplicatedPromptText(`${prompt}  ${prompt}  ${prompt}  `, prompt)).toBe(prompt);
+  });
+
   test('does not collapse unrelated text that merely contains the prompt once', () => {
     const other = `${prompt}\n\nPlease keep the original line breaks.`;
     expect(collapseDuplicatedPromptText(other, prompt)).toBe(other);

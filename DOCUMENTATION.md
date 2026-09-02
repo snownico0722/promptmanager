@@ -64,7 +64,7 @@ To add a provider: add a JSON entry (origins are covered by optional `<all_urls>
 
 Detection order: user pin → learned selector → provider `element_selector` → heuristics (including Gemini shadow DOM).
 
-Rich editors use `beforeinput` / `execCommand('insertText')` and skip synthetic paste on ChatGPT / Perplexity (those hosts turn paste into a quote card). ChatGPT multiline prompts use one `insertHTML` transaction so line breaks are not flattened. Textareas set `value` and dispatch `input` / `change`. Append vs overwrite is `disableOverwrite` in `chrome.storage.local`.
+Rich editors use `beforeinput` / `execCommand('insertText')` and skip synthetic paste on ChatGPT / Perplexity (those hosts turn paste into a quote card). Perplexity's Lexical `#ask-input` ignores untrusted `beforeinput` and commits `execCommand` asynchronously, so the insert path writes once, waits for the text to appear before retrying, and collapses 3+ copies. ChatGPT multiline prompts use one `insertHTML` transaction so line breaks are not flattened. Textareas set `value` and dispatch `input` / `change`. Append vs overwrite is `disableOverwrite` in `chrome.storage.local`.
 
 ## Storage (`storage/promptStorage.js`)
 

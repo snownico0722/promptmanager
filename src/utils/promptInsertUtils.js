@@ -59,9 +59,8 @@
     const occurrences = text.match(new RegExp(escaped, 'g'));
     if (!occurrences || occurrences.length < 2) return false;
 
-    let remainder = text;
-    remainder = remainder.replace(needle, '');
-    remainder = remainder.replace(needle, '');
+    // COMMENT: Strip every copy, not just two — Perplexity Lexical retries can land 3+
+    const remainder = text.split(needle).join('');
     // COMMENT: Leftover quote markers, hr separators, and caret-like arrows from paste cards
     const junk = remainder.replace(/[\s>`\-–—:~*]+/g, '');
     return junk.length === 0;
@@ -97,10 +96,7 @@
       return expected;
     }
 
-    // COMMENT: Plain concatenation of the same prompt twice (Lexical execCommand double-insert)
-    if (!append && (text === `${needle}${needle}` || text === `${needle}  ${needle}` || text === `${needle}\n${needle}`)) {
-      return needle;
-    }
+    // COMMENT: Prompt wrapped in quote-card junk, e.g. prompt + "---" + prompt
     if (!append && text.startsWith(needle) && text.endsWith(needle) && text.length > needle.length) {
       const middle = text.slice(needle.length, text.length - needle.length);
       if (/^[\s>`\-–—:~*]*$/.test(middle)) return needle;
