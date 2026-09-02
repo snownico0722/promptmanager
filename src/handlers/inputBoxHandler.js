@@ -398,6 +398,23 @@ class InputBoxHandler {
   }
 
   /**
+   * COMMENT: Perplexity's #ask-input is Lexical. It ignores untrusted beforeinput and
+   * commits execCommand('insertText') after the current JS turn, so a synchronous
+   * innerText check looks empty and extra fallbacks all land later as copies.
+   * @param {HTMLElement} inputBox
+   * @returns {boolean}
+   */
+  static _isLexicalEditor(inputBox) {
+    if (!(inputBox instanceof HTMLElement)) return false;
+    if (inputBox.getAttribute('data-lexical-editor') === 'true') return true;
+    if (inputBox.id === 'ask-input') return true;
+    return Boolean(
+      inputBox.closest?.('[data-lexical-editor="true"]')
+      || inputBox.querySelector?.('[data-lexical-editor="true"]')
+    );
+  }
+
+  /**
    * COMMENT: True only for ChatGPT's current ProseMirror composer. Keep this separate
    * from Perplexity so its insertion behavior is unchanged.
    * @param {HTMLElement} inputBox
@@ -488,7 +505,9 @@ class InputBoxHandler {
   }
 
   /**
-   * COMMENT: Insert once — beforeinput first so Lexical/ProseMirror can preventDefault, then execCommand.
+   * COMMENT: Insert once. Lexical (Perplexity) only gets execCommand — synthetic
+   * beforeinput is ignored, and a second write becomes another copy after flush.
+   * Other rich editors still get beforeinput first so they can preventDefault.
    * @param {HTMLElement} inputBox
    * @param {string} text
    * @returns {boolean}
@@ -496,31 +515,36 @@ class InputBoxHandler {
   static _insertTextOnce(inputBox, text) {
     if (!text) return true;
     const before = InputBoxHandler._readPlainText(inputBox);
+    const lexical = InputBoxHandler._isLexicalEditor(inputBox);
 
-    try {
-      inputBox.dispatchEvent(new InputEvent('beforeinput', {
-        inputType: 'insertText',
-        data: text,
-        bubbles: true,
-        cancelable: true,
-      }));
-    } catch (_) {
-      // COMMENT: InputEvent may be rejected in older editor contexts
+    if (!lexical) {
+      try {
+        const beforeInputEvent = new InputEvent('beforeinput', {
+          inputType: 'insertText',
+          data: text,
+          bubbles: true,
+          cancelable: true,
+        });
+        inputBox.dispatchEvent(beforeInputEvent);
+        if (beforeInputEvent.defaultPrevented) return true;
+      } catch (_) {
+        // COMMENT: InputEvent may be rejected in older editor contexts
+      }
+
+      if (InputBoxHandler._textGained(before, InputBoxHandler._readPlainText(inputBox), text)) {
+        return true;
+      }
     }
 
-    let after = InputBoxHandler._readPlainText(inputBox);
-    if (InputBoxHandler._textGained(before, after, text)) return true;
-
     try {
-      if (document.execCommand('insertText', false, text)) {
-        after = InputBoxHandler._readPlainText(inputBox);
-        if (InputBoxHandler._textGained(before, after, text)) return true;
-      }
+      // COMMENT: execCommand true means the browser accepted the insert even if
+      // Lexical has not flushed innerText yet. Do not fire more writes.
+      if (document.execCommand('insertText', false, text)) return true;
     } catch (_) {
       // COMMENT: execCommand may be unavailable in some editor contexts
     }
 
-    return false;
+    return InputBoxHandler._textGained(before, InputBoxHandler._readPlainText(inputBox), text);
   }
 
   /**
@@ -631,7 +655,8 @@ class InputBoxHandler {
     if (utils.isQuotedDuplicatePrompt?.(repaired, content)
       || utils.normalizeEditorText(repaired) !== utils.normalizeEditorText(collapsed)) {
       // COMMENT: Repair insert also doubled — write once through the DOM as a last resort
-      if (inputBox.isContentEditable) {
+      // COMMENT: Skip on Lexical — textContent + input is another delayed copy
+      if (inputBox.isContentEditable && !InputBoxHandler._isLexicalEditor(inputBox)) {
         inputBox.textContent = collapsed + '  ';
         inputBox.dispatchEvent(new Event('input', { bubbles: true }));
       }
@@ -655,8 +680,13 @@ class InputBoxHandler {
 
     const trailing = '  ';
     let inserted = false;
+    const lexical = InputBoxHandler._isLexicalEditor(editor);
 
-    if (content.includes('\n')) {
+    if (lexical) {
+      // COMMENT: One execCommand for the full string, including newlines. Extra
+      // beforeinput/input events are what tripled prompts on Perplexity.
+      inserted = InputBoxHandler._insertTextOnce(editor, content + trailing);
+    } else if (content.includes('\n')) {
       // COMMENT: ChatGPT ProseMirror — one insertHTML transaction so newlines are not flattened
       inserted = InputBoxHandler._insertChatGPTMultilineHtml(editor, content);
       if (!inserted) {
@@ -690,11 +720,12 @@ class InputBoxHandler {
     }
 
     // COMMENT: Paste is a last resort and is skipped on ChatGPT/Perplexity (quote/attachment hosts)
-    if (!inserted) {
+    if (!inserted && !lexical) {
       inserted = InputBoxHandler._insertViaPaste(editor, content + trailing);
     }
 
-    if (!inserted) {
+    // COMMENT: Skip this fallback on Lexical — a synthetic input event is a third copy
+    if (!inserted && !lexical) {
       try {
         editor.dispatchEvent(new InputEvent('beforeinput', {
           inputType: 'insertText',
@@ -958,6 +989,31 @@ class InputBoxHandler {
    */
   static _insertLooksSuccessful(inputBox, content, _beforeText) {
     return InputBoxHandler._editorHasPrompt(inputBox, content);
+  }
+
+  /**
+   * COMMENT: Lexical commits after the current turn — wait before deciding the write failed.
+   * @param {number} ms
+   * @returns {Promise<void>}
+   */
+  static _delay(ms) {
+    return new Promise((resolve) => { window.setTimeout(resolve, ms); });
+  }
+
+  /**
+   * COMMENT: Poll until the prompt is visible or the timeout elapses.
+   * @param {HTMLElement} inputBox
+   * @param {string} content
+   * @param {number} [maxWaitMs]
+   * @returns {Promise<boolean>}
+   */
+  static async _waitUntilPromptVisible(inputBox, content, maxWaitMs = 400) {
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+      if (InputBoxHandler._insertLooksSuccessful(inputBox, content)) return true;
+      await InputBoxHandler._delay(32);
+    }
+    return InputBoxHandler._insertLooksSuccessful(inputBox, content);
   }
 
   /**
@@ -1595,16 +1651,17 @@ class InputBoxHandler {
       return false;
     }
 
+    const disableOverwrite = await new Promise(resolve => {
+      try {
+        chrome.storage.local.get('disableOverwrite', data => {
+          if (chrome.runtime?.lastError) { resolve(false); return; }
+          resolve(Boolean(data?.disableOverwrite));
+        });
+      } catch (_) { resolve(false); }
+    });
+
     const writeOnce = async () => {
       InputBoxHandler._activateComposer(inputBox);
-      const disableOverwrite = await new Promise(resolve => {
-        try {
-          chrome.storage.local.get('disableOverwrite', data => {
-            if (chrome.runtime?.lastError) { resolve(false); return; }
-            resolve(Boolean(data?.disableOverwrite));
-          });
-        } catch (_) { resolve(false); }
-      });
 
       if (inputBox.isContentEditable) {
         const editor = InputBoxHandler._resolveRichEditor(inputBox);
@@ -1703,7 +1760,12 @@ class InputBoxHandler {
 
     try {
       await writeOnce();
-      if (!InputBoxHandler._insertLooksSuccessful(inputBox, content, beforeText)) await writeOnce();
+      // COMMENT: Perplexity Lexical flushes after this turn; retrying immediately inserts another copy
+      const visible = await InputBoxHandler._waitUntilPromptVisible(inputBox, content);
+      if (!visible) await writeOnce();
+      await InputBoxHandler._waitUntilPromptVisible(inputBox, content, 250);
+      const editor = InputBoxHandler._resolveRichEditor(inputBox) || inputBox;
+      InputBoxHandler._collapseDuplicateIfNeeded(editor, content, beforeText, disableOverwrite);
       const success = InputBoxHandler._insertLooksSuccessful(inputBox, content, beforeText);
       if (success) {
         if (typeof PromptUIManager !== 'undefined' && PromptUIManager.hidePromptList) {
