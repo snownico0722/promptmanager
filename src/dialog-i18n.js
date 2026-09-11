@@ -4,7 +4,8 @@
   window.__OPM_DIALOG_I18N__ = true;
 
   const nativePrompt = typeof window.prompt === 'function' ? window.prompt.bind(window) : null;
-  if (!nativePrompt) return;
+  const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
+  if (!nativePrompt && !nativeAlert) return;
 
   const DIALOG_ZH = {
     'Enter a title for your prompt': '请输入提示词标题',
@@ -20,6 +21,11 @@
   }
 
   // COMMENT: service-worker executeScript() runs in the extension isolated world. Translate
-  // native prompt() there as well; alert/confirm are wrapped by the shared i18n layer.
-  window.prompt = (message, defaultValue) => nativePrompt(translateDialog(message), defaultValue);
+  // native prompt()/alert() there as well, including save-from-selection dialogs.
+  if (nativePrompt) {
+    window.prompt = (message, defaultValue) => nativePrompt(translateDialog(message), defaultValue);
+  }
+  if (nativeAlert) {
+    window.alert = (message) => nativeAlert(translateDialog(message));
+  }
 })();
