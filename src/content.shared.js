@@ -112,7 +112,9 @@
         const renderPills = () => {
           pills.innerHTML = '';
           Array.from(tagsSet).forEach(tag => {
-            const pill = createEl('span', { className: `opm-tag-pill opm-${getMode()}`, innerHTML: String(tag) });
+            const pill = createEl('span', { className: `opm-tag-pill opm-${getMode()}` });
+            pill.setAttribute('data-opm-user-content', '');
+            pill.textContent = String(tag);
             const removeBtn = createEl('button', { className: 'opm-tag-remove', innerHTML: '×' });
             removeBtn.addEventListener('click', (e) => {
               e.stopPropagation();
@@ -159,7 +161,9 @@
           options = await TagService.getSuggestions({ term: input.value, exclude: tagsSet });
           suggestions.innerHTML = '';
           options.forEach((t, idx) => {
-            const item = createEl('div', { className: 'opm-tag-suggestion-item', innerHTML: t });
+            const item = createEl('div', { className: 'opm-tag-suggestion-item' });
+            item.setAttribute('data-opm-user-content', '');
+            item.textContent = t;
             if (idx === activeIndex) item.classList.add('active');
             item.addEventListener('mousedown', e => {
               e.preventDefault();
@@ -288,6 +292,7 @@
           tags.forEach(tag => {
             const count = counts.get(tag) || 0;
             const pill = makePill(count > 0 ? `${tag}` : tag, (selectedTag || 'all') === tag);
+            pill.setAttribute('data-opm-user-content', '');
             pill.dataset.tag = tag;
             pill.addEventListener('click', e => { e.stopPropagation(); if (typeof onSelect === 'function') onSelect(tag); updateSelected(tag); });
             bar.appendChild(pill);
@@ -317,6 +322,7 @@
             }
           });
           const text = createEl('div', { styles: { flex: '1' } });
+          text.setAttribute('data-opm-user-content', '');
           text.textContent = prompt.title;
           item.appendChild(text);
           item.dataset.title = prompt.title.toLowerCase();
@@ -379,6 +385,7 @@
 
           const info = createEl('div', { styles: { display: 'flex', flexDirection: 'column', flex: '1', gap: '2px' } });
           const text = createEl('div', { styles: { flex: '0 0 auto' } });
+          text.setAttribute('data-opm-user-content', '');
           text.textContent = prompt.title;
           info.appendChild(text);
 
@@ -386,7 +393,7 @@
           const editIcon = Elements.createIconButton('edit', (e) => { e.stopPropagation(); window.PromptUIManager.showEditForm(prompt); });
           const deleteIcon = Elements.createIconButton('delete', (e) => {
             e.stopPropagation();
-            if (confirm(`Delete "${prompt.title}"?`)) window.PromptUIManager.deletePrompt(prompt.uuid);
+            if (window.OPMI18n.confirm(`Delete "${prompt.title}"?`)) window.PromptUIManager.deletePrompt(prompt.uuid);
           });
           actions.append(editIcon, deleteIcon);
 
@@ -691,7 +698,7 @@
           const form = createEl('div', { className: `opm-form-container opm-create-form opm-${getMode()}`, styles: { padding: '0', display: 'flex', flexDirection: 'column', gap: '4px' } });
           const titleIn = createEl('input', { attributes: { placeholder: 'Prompt Title' }, className: `opm-input-field opm-${getMode()}`, styles: { borderRadius: '4px' } });
           const contentArea = createEl('textarea', {
-            attributes: { placeholder: 'Write your prompt. Use hashtags for #variables#' },
+            attributes: { placeholder: 'Write your prompt. Use hashtags for #variables#', title: 'Variable names can contain letters, numbers and underscores.' },
             className: `opm-textarea-field opm-${getMode()}`,
             styles: { flex: '1 1 auto', minHeight: '0', height: 'auto' }
           });
@@ -701,7 +708,7 @@
           saveBtn.addEventListener('click', async e => {
             e.stopPropagation();
             const t = titleIn.value.trim(), c = contentArea.value.trim();
-            if (!t || !c) { alert('Please fill in both title and content.'); return; }
+            if (!t || !c) { window.OPMI18n.alert('Please fill in both title and content.'); return; }
             if (typeof onSubmit === 'function') await onSubmit({ title: t, content: c });
           });
           form.append(titleIn, contentArea, saveBtn);
@@ -779,7 +786,7 @@
           const form = createEl('div', { className: `opm-form-container opm-create-form opm-${getMode()}`, styles: { padding: '0', display: 'flex', flexDirection: 'column', gap: '8px' } });
           const titleIn = createEl('input', { attributes: { placeholder: 'Prompt Title' }, className: `opm-input-field opm-${getMode()}`, styles: { borderRadius: '4px' } });
           const contentArea = createEl('textarea', {
-            attributes: { placeholder: 'Enter prompt. # for #variables#' },
+            attributes: { placeholder: 'Enter prompt. # for #variables#', title: 'Variable names can contain letters, numbers and underscores.' },
             className: `opm-textarea-field opm-create-textarea opm-${getMode()}`,
             styles: { flex: '1 1 auto', minHeight: '0', height: 'auto' }
           });
@@ -798,10 +805,10 @@
           saveBtn.addEventListener('click', async e => {
             e.stopPropagation();
             const t = titleIn.value.trim(), c = contentArea.value.trim();
-            if (!t || !c) { alert('Please fill in both title and content.'); return; }
+            if (!t || !c) { window.OPMI18n.alert('Please fill in both title and content.'); return; }
             const tags = enableTags && tagInput ? tagInput.getTags() : [];
             const res = await window.PromptStorageManager.savePrompt({ title: t, content: c, tags });
-            if (!res.success) { alert('Error saving prompt.'); return; }
+            if (!res.success) { window.OPMI18n.alert('Error saving prompt.'); return; }
             window.PanelRouter.mount(window.PanelView.LIST);
           });
 
@@ -933,7 +940,7 @@
             try {
               await window.PromptStorageManager.exportPrompts();
             } catch (err) {
-              alert('Export failed.');
+              window.OPMI18n.alert('Export failed.');
             }
           });
           const importBtn = createEl('button', { innerHTML: 'Import', className: `opm-button opm-${getMode()}` });
@@ -949,7 +956,7 @@
                   importBtn.textContent = 'Import successful!';
                   setTimeout(() => importBtn.textContent = 'Import', window.IMPORT_SUCCESS_RESET_MS || 2000);
                 } catch (err) {
-                  alert('Invalid JSON file format.');
+                  window.OPMI18n.alert('Invalid JSON file format.');
                 }
               }
             });
@@ -963,12 +970,12 @@
           });
           deleteAllBtn.addEventListener('click', async e => {
             e.stopPropagation();
-            if (!confirm('Delete ALL prompts? This cannot be undone.')) return;
+            if (!window.OPMI18n.confirm('Delete ALL prompts? This cannot be undone.')) return;
             try {
               await window.PromptStorageManager.setPrompts([]);
               window.PanelRouter.mount(window.PanelView.SETTINGS);
             } catch (_) {
-              alert('Failed to delete prompts.');
+              window.OPMI18n.alert('Failed to delete prompts.');
             }
           });
 
@@ -1088,11 +1095,13 @@
                     dragFromIndex = null;
                   });
 
-                  const label = createEl('span', { innerHTML: `${tag} (${n})` });
+                  const label = createEl('span');
+                  label.setAttribute('data-opm-user-content', '');
+                  label.textContent = `${tag} (${n})`;
                   const removeBtn = createEl('button', { innerHTML: '×', styles: { marginLeft: '6px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', lineHeight: '1' } });
                   removeBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    if (!confirm(`Remove tag "${tag}" from all prompts?`)) return;
+                    if (!window.OPMI18n.confirm(`Remove tag "${tag}" from all prompts?`)) return;
                     try {
                       const prompts = await window.PromptStorageManager.getPrompts();
                       const updated = prompts.map(p => {
@@ -1220,6 +1229,7 @@
             reorder.wireItem(item, idx, dragHandle);
             const info = createEl('div', { styles: { display: 'flex', flexDirection: 'column', flex: '1', gap: '2px' } });
             const text = createEl('div', { styles: { flex: '0 0 auto' } });
+            text.setAttribute('data-opm-user-content', '');
             text.textContent = p.title;
             info.appendChild(text);
             const lowerTags = Array.isArray(p.tags) ? p.tags.map(t => String(t).toLowerCase()).join(' ') : '';
@@ -1229,7 +1239,7 @@
             item.dataset.tagsList = JSON.stringify(Array.isArray(p.tags) ? p.tags.map(t => String(t).toLowerCase()) : []);
             const actions = createEl('div', { styles: { display: 'flex', gap: '4px' } });
             const editIcon = Elements.createIconButton('edit', () => { window.PromptUIManager.showEditForm(p); });
-            const deleteIcon = Elements.createIconButton('delete', () => { if (confirm(`Delete "${p.title}"?`)) window.PromptUIManager.deletePrompt(p.uuid); });
+            const deleteIcon = Elements.createIconButton('delete', () => { if (window.OPMI18n.confirm(`Delete "${p.title}"?`)) window.PromptUIManager.deletePrompt(p.uuid); });
             actions.append(editIcon, deleteIcon);
             item.append(dragHandle, info, actions);
             promptsContainer.appendChild(item);

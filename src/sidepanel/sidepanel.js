@@ -165,6 +165,7 @@ function openVariableInputView(prompt) {
 
     const label = document.createElement('label');
     label.className = themeClass;
+    label.setAttribute('data-opm-user-content', '');
     label.textContent = displayLabel;
 
     const input = document.createElement('textarea');
@@ -397,7 +398,7 @@ async function insertPromptIntoActiveTab(prompt) {
       return false;
     }
     if (!pickerResult?.ok && pickerResult?.error !== 'picker_already_active') {
-      showSidepanelToast(pickerResult?.error || 'Could not start input picker on this page.', { error: true });
+      showSidepanelToast('Could not start input picker on this page.', { error: true });
       return false;
     }
     cachedPermissionAllowed = null;
@@ -434,7 +435,7 @@ async function startKnownSiteInputPicker(tab, pendingPrompt) {
     return;
   }
   if (!pickerResult?.ok && pickerResult?.error !== 'picker_already_active') {
-    showSidepanelToast(pickerResult?.error || 'Could not start input picker on this page.', { error: true });
+    showSidepanelToast('Could not start input picker on this page.', { error: true });
   }
 }
 
@@ -548,11 +549,11 @@ async function handleCustomWebsiteAction(customWebsiteBtn) {
   if (currentlyPinned || currentlyLearned) {
     const result = await resetInputDetectionForTab(tab);
     if (result?.error === 'permission_denied') {
-      window.alert('Allow site access for this page to pick its input field.');
+      window.OPMI18n.alert('Allow site access for this page to pick its input field.');
       return;
     }
     if (!result?.ok && result?.error !== 'picker_already_active') {
-      window.alert(result?.error || 'Could not reset input detection on this page.');
+      window.OPMI18n.alert('Could not reset input detection on this page.');
       return;
     }
     await refreshCustomWebsiteButton(customWebsiteBtn);
@@ -562,11 +563,11 @@ async function handleCustomWebsiteAction(customWebsiteBtn) {
 
   const result = await startInputPickerForTab(tab);
   if (result?.error === 'permission_denied') {
-    window.alert('Allow site access for this page to pick its input field.');
+    window.OPMI18n.alert('Allow site access for this page to pick its input field.');
     return;
   }
   if (!result?.ok && result?.error !== 'picker_already_active') {
-    window.alert(result?.error || 'Could not start input picker on this page.');
+    window.OPMI18n.alert('Could not start input picker on this page.');
     return;
   }
 
@@ -894,12 +895,9 @@ function showSidepanelToast(message, { error = false, action = null } = {}) {
 const pendingActionFeedback = new Map();
 
 function findPromptActionButton(uuid, kind) {
-  const li = document.querySelector(`#prompt-list li[data-uuid="${uuid}"]`);
+  const li = document.querySelector(`#prompt-list li[data-uuid="${CSS.escape(uuid)}"]`);
   if (!li) return null;
-  const label = kind === 'share'
-    ? 'Share to Open Prompt Database'
-    : 'Copy to clipboard';
-  return li.querySelector(`.spm-prompt-action-btn[aria-label="${label}"]`);
+  return li.querySelector(`.spm-prompt-action-btn[data-opm-action="${kind}"]`);
 }
 
 function schedulePromptActionFeedback(uuid, kind, btn) {
@@ -917,7 +915,7 @@ function applyPendingActionFeedback() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       for (const [uuid, kind] of [...pendingActionFeedback.entries()]) {
-        const li = document.querySelector(`#prompt-list li[data-uuid="${uuid}"]`);
+        const li = document.querySelector(`#prompt-list li[data-uuid="${CSS.escape(uuid)}"]`);
         const btn = findPromptActionButton(uuid, kind);
         if (!btn || !li) continue;
         li.classList.add('spm-action-feedback-visible');
@@ -966,6 +964,7 @@ function createPromptSvgActionButton(label, svgHtml, onClick, { withFeedback = f
   btn.className = 'spm-prompt-action-btn';
   btn.title = label;
   btn.setAttribute('aria-label', label);
+  if (feedbackKey) btn.dataset.opmAction = feedbackKey.kind;
   btn.innerHTML = svgHtml;
   if (withFeedback) {
     wrapPromptActionWithFeedback(btn, onClick, feedbackKey);
@@ -981,6 +980,7 @@ function createPromptImgActionButton(label, src, size, onClick, { withFeedback =
   btn.className = 'spm-prompt-action-btn';
   btn.title = label;
   btn.setAttribute('aria-label', label);
+  if (feedbackKey) btn.dataset.opmAction = feedbackKey.kind;
   const img = document.createElement('img');
   img.src = src;
   img.alt = '';
@@ -1048,7 +1048,7 @@ function buildPromptListItemActions(prompt) {
     18,
     async (e) => {
       e.stopPropagation();
-      if (!window.confirm('Are you sure you want to delete this prompt?')) return;
+      if (!window.OPMI18n.confirm('Are you sure you want to delete this prompt?')) return;
       await PromptStorage.deletePrompt(prompt.uuid);
     },
   ));
@@ -1158,6 +1158,7 @@ function createSidepanelTagInput({ initialTags = [] } = {}) {
     Array.from(tagsSet).forEach(tag => {
       const pill = document.createElement('span');
       pill.className = 'spm-tag-pill';
+      pill.setAttribute('data-opm-user-content', '');
       pill.textContent = String(tag);
 
       const removeBtn = document.createElement('button');
@@ -1207,6 +1208,7 @@ function createSidepanelTagInput({ initialTags = [] } = {}) {
       const item = document.createElement('div');
       item.className = 'spm-tag-suggestion-item';
       if (idx === activeIndex) item.classList.add('active');
+      item.setAttribute('data-opm-user-content', '');
       item.textContent = t;
       item.addEventListener('mousedown', e => {
         e.preventDefault();
@@ -1345,6 +1347,7 @@ async function renderTagsFilterBar(prompts, enableTagsOverride) {
     pill.type = 'button';
     pill.className = 'spm-tag-pill-filter';
     pill.textContent = label;
+    if (tag !== 'all') pill.setAttribute('data-opm-user-content', '');
     pill.dataset.tag = tag;
     pill.setAttribute('aria-pressed', String(!!isSelected));
     pill.addEventListener('click', async (e) => {
@@ -1750,6 +1753,7 @@ function displayPrompts(prompts, totalCount = prompts.length) {
     const li = document.createElement('li');
     li.dataset.uuid = prompt.uuid;
     const titleSpan = document.createElement('span');
+    titleSpan.setAttribute('data-opm-user-content', '');
     titleSpan.textContent = prompt.title;
     titleSpan.style.margin = '2px';
     titleSpan.style.padding = '3px';
@@ -1791,6 +1795,7 @@ async function refreshPromptListView(force = false) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await window.OPMI18n.ready;
   maintainSidePanelPresence();
 
   if (isExpandedTabView()) {
@@ -1975,7 +1980,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       resetPromptForm();
     } catch (error) {
       console.error(error);
-      showSidepanelToast(error?.message || 'Could not save this prompt.', { error: true });
+      showSidepanelToast('Could not save this prompt.', { error: true });
     }
   });
 

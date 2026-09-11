@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>Simple Prompt Manager</title>
+  <title>Open Prompt Manager</title>
   <link rel="stylesheet" href="styles.css" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -48,7 +48,7 @@
         <form id="prompt-form">
           <input type="hidden" id="prompt-uuid" />
           <input type="text" id="prompt-title" class="opm-input-field" placeholder="Prompt Title" required />
-          <textarea id="prompt-content" class="opm-textarea-field" placeholder="Enter your prompt here - Use #variablename# for dynamic values." required></textarea>
+          <textarea id="prompt-content" title="Variable names can contain letters, numbers and underscores." class="opm-textarea-field" placeholder="Enter your prompt here - Use #variablename# for dynamic values." required></textarea>
           <div id="prompt-tags-host" class="prompt-tags-host" hidden></div>
           <div class="form-actions">
             <button class="main" type="submit" id="submit-button">
@@ -152,6 +152,7 @@
   <!-- COMMENT: Right-hand composer pane — used in expanded tab (?expanded=1); form moves here via JS -->
   <div class="composer-panel" id="composer-panel" hidden></div>
   </div>
+  <script src="../i18n-core.js"></script>
   <script src="../i18n.js"></script>
   <script type="module" src="sidepanel.js"></script>
 

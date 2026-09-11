@@ -287,6 +287,7 @@ async function renderTagManagement() {
 
       const label = document.createElement('span');
       label.className = 'settings-tag-label';
+      label.setAttribute('data-opm-user-content', '');
       label.textContent = `${tag} (${count})`;
 
       const removeBtn = document.createElement('button');
@@ -295,7 +296,7 @@ async function renderTagManagement() {
       removeBtn.setAttribute('aria-label', `Remove tag ${tag} from all prompts`);
       removeBtn.textContent = '×';
       removeBtn.addEventListener('click', async () => {
-        if (!confirm(`Remove tag "${tag}" from all prompts?`)) return;
+        if (!window.OPMI18n.confirm(`Remove tag "${tag}" from all prompts?`)) return;
         const currentPrompts = await getPrompts();
         const nextPrompts = currentPrompts.map((prompt) => ({
           ...prompt,
@@ -532,6 +533,7 @@ async function renderWebsitePermissions() {
 
     const label = document.createElement('span');
     label.className = 'settings-permission-label';
+    if (entry.pattern !== '<all_urls>') label.setAttribute('data-opm-user-content', '');
     label.textContent = entry.label;
 
     const removeBtn = document.createElement('button');
@@ -540,7 +542,7 @@ async function renderWebsitePermissions() {
     removeBtn.setAttribute('aria-label', `Remove access to ${entry.label}`);
     removeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12l-4.89 4.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>';
     removeBtn.addEventListener('click', async () => {
-      const confirmed = confirm(`Remove access to ${entry.label}?`);
+      const confirmed = window.OPMI18n.confirm(`Remove access to ${entry.label}?`);
       if (!confirmed) return;
 
       await new Promise(resolve => {
@@ -571,14 +573,15 @@ function initWebsitePermissions() {
 }
 
 async function deleteAllPrompts() {
-  if (confirm('Are you sure you want to delete all prompts? This action cannot be undone.')) {
+  if (window.OPMI18n.confirm('Are you sure you want to delete all prompts? This action cannot be undone.')) {
     await setPrompts([]);
     setImportExportStatus('All prompts deleted.');
     renderTagManagement().catch(console.error);
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await window.OPMI18n.ready;
   const shell = document.querySelector('.settings-page-shell');
   mountSidepanelFooter({ active: 'settings', root: shell || document.body });
 
@@ -615,7 +618,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTagManagement().catch(console.error);
       } catch (err) {
         console.error(err);
-        setImportExportStatus(err?.message || 'Import failed — invalid JSON file.', true);
+        setImportExportStatus(err instanceof SyntaxError
+          ? 'Import failed — invalid JSON file.'
+          : 'Import failed. Please try again.', true);
       }
     });
   }
