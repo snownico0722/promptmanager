@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "Open Prompt Manager - for AI Agents & Assistants"
+  },
+  "extensionDescription": {
+    "message": "Save, organize and reuse your best AI prompts across ChatGPT, Claude, Gemini, Grok and more. Free and open source."
+  },
+  "openSidebar": {
+    "message": "Open Sidebar"
+  }
+}
