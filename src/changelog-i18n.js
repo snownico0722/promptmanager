@@ -1,88 +1,70 @@
+// Direct view loader: no global patches, DOM observers or version-string sniffing.
 (() => {
   'use strict';
-  if (window.__OPM_CHANGELOG_I18N__) return;
-  window.__OPM_CHANGELOG_I18N__ = true;
+  if (globalThis.OPMChangelog) return;
+  const i18n = globalThis.OPMI18n;
+  const cache = new Map();
+  let activeHost = null;
+  let generation = 0;
 
-  const ENGLISH_PATH = 'changelog.html';
-  const CHINESE_PATH = 'changelog.zh-CN.html';
-  let rootObserver = null;
-  let bodyObserver = null;
-  let observerRoot = null;
-  let inFlightLanguage = null;
-
-  function desiredLanguage() {
-    return window.OPMI18n?.getLanguage?.() === 'zh-CN' ? 'zh-CN' : 'en';
+  function read(language) {
+    if (!cache.has(language)) {
+      const path = language === 'zh-CN' ? 'changelog.zh-CN.html' : 'changelog.html';
+      const request = fetch(chrome.runtime.getURL(path)).then(response => {
+        if (!response.ok) throw new Error(`Changelog HTTP ${response.status}`);
+        return response.text();
+      }).catch(error => { cache.delete(language); throw error; });
+      cache.set(language, request);
+    }
+    return cache.get(language);
   }
 
-  function contentLooksChinese(host) {
-    const text = host?.textContent || '';
-    return text.includes('未发布') && text.includes('版本 3.0.5');
-  }
-
-  async function renderChangelogIfNeeded() {
-    const host = document.getElementById('opm-changelog-content');
-    if (!host) return;
-
-    const language = desiredLanguage();
-    const alreadyMatches = language === 'zh-CN'
-      ? contentLooksChinese(host)
-      : (host.textContent.trim().length > 0 && !contentLooksChinese(host));
-    if (alreadyMatches || inFlightLanguage === language) return;
-
-    inFlightLanguage = language;
+  async function render(host) {
+    const ticket = ++generation;
+    await i18n.ready;
+    const language = i18n.getLanguage();
+    if (ticket !== generation || activeHost?.deref() !== host) return;
+    host.setAttribute('data-opm-i18n-skip', '');
+    host.textContent = i18n.t('Loading changelog…');
+    let html;
+    let actualLanguage = language;
     try {
-      const path = language === 'zh-CN' ? CHINESE_PATH : ENGLISH_PATH;
-      const response = await fetch(chrome.runtime.getURL(path));
-      if (!response.ok) return;
-      const html = await response.text();
-
-      // Language or view may have changed while the file was loading.
-      if (!host.isConnected || desiredLanguage() !== language) return;
+      try { html = await read(language); }
+      catch (error) {
+        if (language === 'en') throw error;
+        actualLanguage = 'en';
+        html = await read('en');
+      }
+      if (ticket !== generation || activeHost?.deref() !== host || !host.isConnected || i18n.getLanguage() !== language) return;
       host.innerHTML = html;
+      host.lang = actualLanguage;
+      host.dataset.opmLocale = actualLanguage;
+      if (actualLanguage !== language) {
+        const note = document.createElement('p');
+        note.textContent = i18n.t('Chinese changelog unavailable. Showing English.');
+        note.lang = language;
+        host.prepend(note);
+      }
     } catch (error) {
-      console.warn('[PromptManager] Failed to load localized changelog:', error);
-    } finally {
-      inFlightLanguage = null;
+      if (ticket !== generation || activeHost?.deref() !== host || !host.isConnected) return;
+      host.textContent = i18n.t('Could not load changelog.');
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.textContent = i18n.t('Retry');
+      retry.addEventListener('click', () => render(host));
+      host.appendChild(retry);
+      console.warn('[OPM i18n] Changelog unavailable:', error);
     }
   }
 
-  function attachRoot(root) {
-    if (!root || root === observerRoot) {
-      renderChangelogIfNeeded();
-      return;
-    }
-    rootObserver?.disconnect();
-    observerRoot = root;
-    rootObserver = new MutationObserver(() => {
-      renderChangelogIfNeeded();
-    });
-    rootObserver.observe(root, { childList: true, subtree: true });
-    renderChangelogIfNeeded();
-  }
-
-  function ensureRootWatcher() {
-    const root = document.getElementById('opm-root');
-    if (root) attachRoot(root);
-    if (bodyObserver || !document.body) return;
-
-    // #opm-root is a direct body child. Observe only body-level additions so this
-    // helper never watches the host application's internal DOM.
-    bodyObserver = new MutationObserver(() => {
-      const nextRoot = document.getElementById('opm-root');
-      if (nextRoot) attachRoot(nextRoot);
-    });
-    bodyObserver.observe(document.body, { childList: true });
-  }
-
-  chrome.storage?.onChanged?.addListener((changes, areaName) => {
-    if (areaName === 'local' && changes.uiLanguage) {
-      renderChangelogIfNeeded();
-    }
+  const unmount = () => { generation += 1; activeHost = null; };
+  globalThis.OPMChangelog = {
+    mount(host) { activeHost = new WeakRef(host); return render(host); },
+    unmount,
+  };
+  i18n.subscribe(() => {
+    const host = activeHost?.deref();
+    if (host?.isConnected) render(host);
+    else unmount();
   });
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', ensureRootWatcher, { once: true });
-  } else {
-    ensureRootWatcher();
-  }
 })();

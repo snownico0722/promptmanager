@@ -1,0 +1,37 @@
+name: Localization review
+on:
+  push:
+    branches: [main, fix/i18n-review-quality]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install existing test dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Check JavaScript syntax
+        run: find src -name '*.js' -print0 | xargs -0 -n 1 node --check
+      - name: Localization unit regressions
+        run: npm run test:i18n:unit
+      - name: Existing offline regressions
+        run: npx jest tests/utils.test.js tests/promptInsertUtils.test.js tests/originPatterns.test.js --runInBand
+      - name: Browser localization regressions
+        run: |
+          export PUPPETEER_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$PUPPETEER_EXECUTABLE_PATH"
+          npm run test:i18n:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: localization-browser-results
+          path: |
+            localization-browser-results.json
+            localization-screenshots/
+          retention-days: 7
+          if-no-files-found: ignore

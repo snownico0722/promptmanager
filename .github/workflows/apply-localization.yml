@@ -1,0 +1,62 @@
+name: Apply reviewed localization changes
+on:
+  push:
+    branches: [fix/i18n-review-quality]
+    paths: ['.review-payload/**', '.github/workflows/apply-localization.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'snownico0722/promptmanager' && github.actor == 'snownico0722' && github.ref == 'refs/heads/fix/i18n-review-quality'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply source transformations
+        run: |
+          node .review-payload/core-builder.mjs
+          python .review-payload/source.py
+          python .review-payload/worker.py
+      - name: Install existing test dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Syntax and regression checks
+        run: |
+          find src -name '*.js' -print0 | xargs -0 -n 1 node --check
+          npm run test:i18n:unit
+          npx jest tests/utils.test.js tests/promptInsertUtils.test.js tests/originPatterns.test.js --runInBand
+      - name: Browser checks
+        run: |
+          export PUPPETEER_EXECUTABLE_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$PUPPETEER_EXECUTABLE_PATH"
+          npm run test:i18n:browser
+      - name: Package inspectable result
+        if: always()
+        run: zip -qr /tmp/localization-reviewed-source.zip src tests docs package.json .github/workflows/localization-review.yml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reviewed-localization-source
+          path: /tmp/localization-reviewed-source.zip
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: localization-browser-results
+          path: |
+            localization-browser-results.json
+            localization-screenshots/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Commit tested source changes
+        run: |
+          git rm -r .review-payload
+          git add src tests docs package.json
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: unify localization lifecycle and improve Chinese copy'
+          git push origin HEAD:refs/heads/fix/i18n-review-quality
