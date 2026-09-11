@@ -7,6 +7,7 @@
 
   const ZH_CN = {
     'Simple Prompt Manager': '简易提示词管理器',
+    'Extension Icon': '扩展图标',
     'Open in New Tab': '在新标签页打开',
     'Close': '关闭',
     'Create Prompt': '新建提示词',
@@ -15,6 +16,7 @@
     'Enter your prompt here - Use #variablename# for dynamic values.': '在此输入提示词——使用 #变量名# 插入动态值。',
     'Save prompt': '保存提示词',
     'Save Prompt': '保存提示词',
+    'Save new prompt': '保存为新提示词',
     'Back': '返回',
     'Submit': '确定',
     'Add your supported Assistants below to get started.': '在下方添加支持的 AI 助手即可开始使用。',
@@ -83,8 +85,10 @@
     'English': 'English',
     'Simplified Chinese': '简体中文',
     'Open Source & Forever Simple.': '开源，始终保持简单。',
+    'Hover to start': '悬停即可开始',
     'Hover to Start...': '悬停即可开始…',
     'Or check out Keyboard Shortcuts.': '也可以使用键盘快捷键。',
+    'Explore features': '探索功能',
     '...And Explore': '…继续探索',
     'Hot Corner, variables, context menu, tags, and more.': '热区、变量、右键菜单、标签等更多功能。',
     'How would you like to open your prompts?': '你希望如何打开提示词？',
@@ -136,7 +140,13 @@
     'Unpin input': '取消固定输入框',
     'Share to Open Prompt Database': '分享到 Open Prompt Database',
     'Unpublish': '取消发布',
-    'Open Sidebar': '打开侧边栏'
+    'Open Sidebar': '打开侧边栏',
+    'Get Started': '开始使用',
+    'Buy me a coffee': '请我喝杯咖啡',
+    'Review me': '给个评价',
+    'Min. 3 characters.': '至少需要 3 个字符。',
+    'No provider data found in storage.': '本地存储中没有找到 AI 助手数据。',
+    'Could not remove all permissions. Try again from Settings.': '无法移除全部权限，请在设置中重试。'
   };
 
   const DYNAMIC_PATTERNS = [
@@ -156,11 +166,28 @@
       re: /^Delete prompt "(.+)"\?$/,
       zh: (match) => `删除提示词“${match[1]}”？`,
     },
+    {
+      re: /^Permission denied for (.+)\. Allow site access in the Chrome prompt to continue\.$/,
+      zh: (match) => `未授予 ${match[1]} 的网站权限。请在 Chrome 权限提示中允许访问后继续。`,
+    },
+    {
+      re: /^Could not request permission for (.+): (.+)$/,
+      zh: (match) => `无法请求 ${match[1]} 的权限：${match[2]}`,
+    },
   ];
 
   const originalText = new WeakMap();
   const originalAttributes = new WeakMap();
   const TRANSLATABLE_ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'alt'];
+  const USER_TEXT_CONTAINERS = [
+    '#prompt-list',
+    '#opm-prompt-items-container',
+    '[data-content]',
+    '[data-tag]',
+    '.settings-tag-label',
+    '#opd-handle-profile-text',
+  ].join(',');
+
   let preference = DEFAULT_PREFERENCE;
   let activeLanguage = 'en';
   let observer = null;
@@ -196,6 +223,11 @@
     return `${value.slice(0, start)}${translated}${value.slice(start + trimmed.length)}`;
   }
 
+  function isUserTextNode(node) {
+    if (!node || node.nodeType !== Node.TEXT_NODE) return false;
+    return Boolean(node.parentElement?.closest(USER_TEXT_CONTAINERS));
+  }
+
   function captureAttribute(element, name) {
     if (!element.hasAttribute(name)) return;
     let attrs = originalAttributes.get(element);
@@ -207,7 +239,7 @@
   }
 
   function applyTextNode(node, refreshOriginal = false) {
-    if (!node || node.nodeType !== Node.TEXT_NODE) return;
+    if (!node || node.nodeType !== Node.TEXT_NODE || isUserTextNode(node)) return;
     if (refreshOriginal || !originalText.has(node)) originalText.set(node, node.nodeValue);
     const source = originalText.get(node) ?? node.nodeValue;
     node.nodeValue = activeLanguage === 'zh-CN' ? translateCore(source) : source;
@@ -251,6 +283,16 @@
     }
   }
 
+  function observerOptions() {
+    return {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: TRANSLATABLE_ATTRIBUTES,
+    };
+  }
+
   function observe(root = document.documentElement) {
     if (!root) return;
     observerRoot = root;
@@ -266,23 +308,11 @@
             mutation.addedNodes.forEach((node) => applySubtree(node));
           }
         }
-        observer.observe(observerRoot, {
-          subtree: true,
-          childList: true,
-          characterData: true,
-          attributes: true,
-          attributeFilter: TRANSLATABLE_ATTRIBUTES,
-        });
+        observer.observe(observerRoot, observerOptions());
       });
     }
     observer.disconnect();
-    observer.observe(root, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: TRANSLATABLE_ATTRIBUTES,
-    });
+    observer.observe(root, observerOptions());
   }
 
   function syncLanguageControl() {
@@ -293,7 +323,7 @@
       select.dataset.opmLanguageBound = '1';
       select.addEventListener('change', async () => {
         const value = SUPPORTED_PREFERENCES.has(select.value) ? select.value : DEFAULT_PREFERENCE;
-        if (chrome?.storage?.local) {
+        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
           await chrome.storage.local.set({ [LANGUAGE_KEY]: value });
         } else {
           preference = value;
@@ -315,7 +345,7 @@
 
   async function loadPreference() {
     try {
-      if (chrome?.storage?.local) {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
         const result = await chrome.storage.local.get([LANGUAGE_KEY]);
         const stored = result?.[LANGUAGE_KEY];
         preference = SUPPORTED_PREFERENCES.has(stored) ? stored : DEFAULT_PREFERENCE;
@@ -337,8 +367,9 @@
     getPreference: () => preference,
     setLanguage: async (value) => {
       const next = SUPPORTED_PREFERENCES.has(value) ? value : DEFAULT_PREFERENCE;
-      if (chrome?.storage?.local) await chrome.storage.local.set({ [LANGUAGE_KEY]: next });
-      else {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ [LANGUAGE_KEY]: next });
+      } else {
         preference = next;
         activeLanguage = resolveLanguage(next);
         apply();
@@ -347,7 +378,7 @@
     apply,
   };
 
-  if (chrome?.storage?.onChanged) {
+  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'local' || !changes[LANGUAGE_KEY]) return;
       const next = changes[LANGUAGE_KEY].newValue;
