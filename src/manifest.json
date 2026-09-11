@@ -1,8 +1,9 @@
 {
     "manifest_version": 3,
-    "name": "Open Prompt Manager - for AI Agents & Assistants",
+    "default_locale": "en",
+    "name": "__MSG_extensionName__",
     "version": "3.0.5",
-    "description": "Save, organize and reuse your best AI prompts across ChatGPT, Claude, Gemini, Grok and more. Free and open source.",
+    "description": "__MSG_extensionDescription__",
     "permissions": [
         "sidePanel",
         "storage",
@@ -20,7 +21,7 @@
         "128": "/icons/icon128.png"
     },
     "action": {
-        "default_title": "Open Sidebar",
+        "default_title": "__MSG_openSidebar__",
         "default_icon": {
             "16": "/icons/icon16.png",
             "48": "/icons/icon48.png",
@@ -28,7 +29,7 @@
         }
     },
     "background": {
-        "service_worker": "service-worker.js",
+        "service_worker": "service-worker-entry.js",
         "type": "module"
     },
     "host_permissions": [],
@@ -49,6 +50,7 @@
                 "icons/*",
                 "changelog.html",
                 "i18n.js",
+                "dialog-i18n.js",
                 "storage/promptStorage.js",
                 "storage/pinnedInputStorage.js",
                 "storage/learnedInputStorage.js",
