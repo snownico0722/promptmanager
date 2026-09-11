@@ -18,6 +18,18 @@
   </header>
 
   <section class="settings-section settings-section-first">
+    <h3 class="settings-heading">Language</h3>
+    <p class="pm-subtitle">Choose the interface language.</p>
+    <label class="settings-shortcut-row" for="ui-language-select">
+      <select id="ui-language-select" class="opm-input-field" style="width: 100%; max-width: 320px;">
+        <option value="auto">Automatic (browser language)</option>
+        <option value="en">English</option>
+        <option value="zh-CN">Simplified Chinese</option>
+      </select>
+    </label>
+  </section>
+
+  <section class="settings-section">
     <h3 class="settings-heading">Keyboard shortcuts</h3>
     <p class="pm-subtitle">Customize how you open the in-page prompt panel on assistant sites.</p>
     <div class="settings-shortcut-row">
@@ -116,6 +128,7 @@
   </div>
   </div>
 
+  <script src="i18n.js"></script>
   <script type="module" src="settings.js"></script>
 </body>
 </html>
