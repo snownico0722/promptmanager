@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "Open Prompt Manager - AI 智能体与助手"
+  },
+  "extensionDescription": {
+    "message": "保存、整理并复用你的 AI 提示词，可用于 ChatGPT、Claude、Gemini、Grok 等服务。免费且开源。"
+  },
+  "openSidebar": {
+    "message": "打开侧边栏"
+  }
+}
