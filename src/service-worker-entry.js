@@ -2,8 +2,10 @@ import './service-worker.js';
 import { getPrompts, onPromptsChanged, savePrompt } from './storage/promptStorage.js';
 
 const LANGUAGE_KEY = 'uiLanguage';
+const ORIGINAL_SAVE_MENU_ID = 'save-as-prompt';
 const LOCALIZED_SAVE_MENU_ID = 'save-as-prompt-i18n';
-let rebuildTimer = null;
+const MENU_PARENT_ID = 'open-prompt-manager';
+let localizationTimer = null;
 
 async function isSimplifiedChinese() {
   try {
@@ -17,46 +19,75 @@ async function isSimplifiedChinese() {
   return uiLanguage.startsWith('zh');
 }
 
-async function rebuildLocalizedContextMenu() {
-  const zh = await isSimplifiedChinese();
-  const saveNewPrompt = zh ? '保存为新提示词' : 'Save new prompt';
-  const untitledPrompt = zh ? '未命名提示词' : 'Untitled prompt';
-
-  await new Promise((resolve) => chrome.contextMenus.removeAll(() => resolve()));
-
-  chrome.contextMenus.create({
-    id: 'open-prompt-manager',
-    title: 'Open Prompt Manager',
-    contexts: ['all'],
-  });
-  chrome.contextMenus.create({
-    id: LOCALIZED_SAVE_MENU_ID,
-    parentId: 'open-prompt-manager',
-    title: saveNewPrompt,
-    contexts: ['selection'],
-  });
-  chrome.contextMenus.create({
-    id: 'save-separator',
-    parentId: 'open-prompt-manager',
-    type: 'separator',
-    contexts: ['selection'],
-  });
-
-  const prompts = await getPrompts().catch(() => []);
-  prompts.forEach((prompt) => {
-    chrome.contextMenus.create({
-      id: `prompt-${prompt.uuid}`,
-      parentId: 'open-prompt-manager',
-      title: prompt.title || untitledPrompt,
-      contexts: ['all'],
+function removeMenuItem(id) {
+  return new Promise((resolve) => {
+    chrome.contextMenus.remove(id, () => {
+      // Missing menu ids are expected during install/rebuild races.
+      void chrome.runtime.lastError;
+      resolve();
     });
   });
 }
 
-function scheduleLocalizedContextMenu(delay = 360) {
-  clearTimeout(rebuildTimer);
-  rebuildTimer = setTimeout(() => {
-    rebuildLocalizedContextMenu().catch((error) => {
+function updateMenuItem(id, updateProperties) {
+  return new Promise((resolve) => {
+    chrome.contextMenus.update(id, updateProperties, () => {
+      const error = chrome.runtime.lastError;
+      resolve(!error);
+    });
+  });
+}
+
+function createMenuItem(createProperties) {
+  return new Promise((resolve) => {
+    try {
+      chrome.contextMenus.create(createProperties, () => {
+        const error = chrome.runtime.lastError;
+        resolve(!error);
+      });
+    } catch (_) {
+      resolve(false);
+    }
+  });
+}
+
+async function ensureLocalizedSaveMenu(title) {
+  // COMMENT: The upstream worker remains the sole owner of the parent menu, separator,
+  // and prompt items. We replace only its save-selection item with a localized id so
+  // the upstream click handler ignores it and cannot duplicate saves.
+  await removeMenuItem(ORIGINAL_SAVE_MENU_ID);
+
+  const updated = await updateMenuItem(LOCALIZED_SAVE_MENU_ID, { title });
+  if (updated) return true;
+
+  return createMenuItem({
+    id: LOCALIZED_SAVE_MENU_ID,
+    parentId: MENU_PARENT_ID,
+    title,
+    contexts: ['selection'],
+  });
+}
+
+async function localizeExistingMenu() {
+  const zh = await isSimplifiedChinese();
+  const saveNewPrompt = zh ? '保存为新提示词' : 'Save new prompt';
+  const untitledPrompt = zh ? '未命名提示词' : 'Untitled prompt';
+
+  const saveReady = await ensureLocalizedSaveMenu(saveNewPrompt);
+  if (!saveReady) return;
+
+  // Prompt titles are user content and stay untouched. Only localize the fallback label
+  // for prompts that actually have an empty title.
+  const prompts = await getPrompts().catch(() => []);
+  await Promise.all(prompts
+    .filter((prompt) => !String(prompt?.title || '').trim())
+    .map((prompt) => updateMenuItem(`prompt-${prompt.uuid}`, { title: untitledPrompt })));
+}
+
+function scheduleMenuLocalization(delay = 300) {
+  clearTimeout(localizationTimer);
+  localizationTimer = setTimeout(() => {
+    localizeExistingMenu().catch((error) => {
       console.warn('[PromptManager] Failed to localize context menu:', error);
     });
   }, delay);
@@ -94,9 +125,6 @@ async function saveSelectionAsPrompt(info, tab) {
   });
 }
 
-// COMMENT: The localized save item deliberately uses a different id so the original
-// worker's save-as-prompt handler ignores it. Existing prompt item ids stay unchanged,
-// so insertion still uses the upstream behavior without duplication.
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info?.menuItemId !== LOCALIZED_SAVE_MENU_ID) return;
   saveSelectionAsPrompt(info, tab).catch((error) => {
@@ -104,17 +132,17 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   });
 });
 
-// COMMENT: The original worker remains the source of truth for all other behavior. Its
-// listeners register first via the static import above; this layer reapplies localized
-// menu titles shortly afterward without changing normal prompt insertion semantics.
-chrome.runtime.onInstalled.addListener(() => scheduleLocalizedContextMenu(500));
-chrome.runtime.onStartup.addListener(() => scheduleLocalizedContextMenu(500));
+// The upstream worker creates/rebuilds the menu first. Localization only reconciles
+// the one replaced item afterward; it never calls removeAll() or rebuilds prompt items.
+chrome.runtime.onInstalled.addListener(() => scheduleMenuLocalization(500));
+chrome.runtime.onStartup.addListener(() => scheduleMenuLocalization(500));
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes[LANGUAGE_KEY]) {
-    scheduleLocalizedContextMenu(50);
+    scheduleMenuLocalization(50);
   }
 });
-onPromptsChanged(() => scheduleLocalizedContextMenu(360));
+onPromptsChanged(() => scheduleMenuLocalization(300));
 
-// MV3 workers can wake without an install/startup event. Ensure the current menu follows the saved language.
-scheduleLocalizedContextMenu(600);
+// Menus persist across MV3 worker sleeps, but language/storage may have changed while
+// the worker was stopped. Reconcile once on every worker start without rebuilding it.
+scheduleMenuLocalization(500);
