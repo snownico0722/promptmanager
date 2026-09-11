@@ -4,6 +4,7 @@
   const LANGUAGE_KEY = 'uiLanguage';
   const DEFAULT_PREFERENCE = 'auto';
   const SUPPORTED_PREFERENCES = new Set(['auto', 'en', 'zh-CN']);
+  const EXTENSION_PROTOCOLS = new Set(['chrome-extension:', 'moz-extension:', 'safari-web-extension:']);
 
   // COMMENT: Brand/product names stay unchanged. This table covers user-facing UI copy.
   const ZH_CN = {
@@ -279,10 +280,21 @@
   let activeLanguage = 'en';
   let observer = null;
   let observerRoot = null;
+  let hostRootObserver = null;
+
+  function isExtensionDocument() {
+    return EXTENSION_PROTOCOLS.has(window.location.protocol);
+  }
 
   function browserLanguage() {
-    const lang = String(navigator.language || '').toLowerCase();
-    return lang.startsWith('zh') ? 'zh-CN' : 'en';
+    let lang = '';
+    try {
+      lang = String(chrome?.i18n?.getUILanguage?.() || '');
+    } catch (_) {
+      lang = '';
+    }
+    if (!lang) lang = String(navigator.language || '');
+    return lang.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
   }
 
   function resolveLanguage(value) {
@@ -371,7 +383,7 @@
     };
   }
 
-  function observe(root = document.documentElement) {
+  function observe(root) {
     if (!root) return;
     observerRoot = root;
     if (!observer) {
@@ -386,11 +398,39 @@
             mutation.addedNodes.forEach((node) => applySubtree(node));
           }
         }
-        observer.observe(observerRoot, observerOptions());
+        if (observerRoot?.isConnected || isExtensionDocument()) {
+          observer.observe(observerRoot, observerOptions());
+        }
       });
     }
     observer.disconnect();
     observer.observe(root, observerOptions());
+  }
+
+  function attachRoot(root) {
+    if (!root) return;
+    if (observer) observer.disconnect();
+    observerRoot = root;
+    applySubtree(root);
+    observe(root);
+  }
+
+  function ensureHostRootWatcher() {
+    if (isExtensionDocument() || hostRootObserver || !document.body) return;
+    hostRootObserver = new MutationObserver(() => {
+      const nextRoot = document.getElementById('opm-root');
+      if (nextRoot && nextRoot !== observerRoot) {
+        attachRoot(nextRoot);
+        return;
+      }
+      if (!nextRoot && observerRoot && !observerRoot.isConnected) {
+        observer?.disconnect();
+        observerRoot = null;
+      }
+    });
+    // COMMENT: #opm-root is appended directly to body. Watching only direct body
+    // children avoids observing or traversing the host site's application DOM.
+    hostRootObserver.observe(document.body, { childList: true });
   }
 
   function syncLanguageControl() {
@@ -412,12 +452,24 @@
   }
 
   function apply() {
-    if (!document.documentElement) return;
-    if (observer) observer.disconnect();
-    document.documentElement.lang = activeLanguage === 'zh-CN' ? 'zh-CN' : 'en';
-    applySubtree(document.documentElement);
-    syncLanguageControl();
-    observe(document.documentElement);
+    const extensionDocument = isExtensionDocument();
+    if (extensionDocument) {
+      if (!document.documentElement) return;
+      document.documentElement.lang = activeLanguage === 'zh-CN' ? 'zh-CN' : 'en';
+      attachRoot(document.documentElement);
+      syncLanguageControl();
+      return;
+    }
+
+    // COMMENT: On assistant websites, never translate or observe the host document.
+    // Only the extension-owned #opm-root subtree is eligible for localization.
+    const root = document.getElementById('opm-root');
+    if (root) attachRoot(root);
+    else {
+      observer?.disconnect();
+      observerRoot = null;
+    }
+    ensureHostRootWatcher();
   }
 
   async function loadPreference() {
@@ -442,6 +494,7 @@
     t: translateCore,
     getLanguage: () => activeLanguage,
     getPreference: () => preference,
+    attachRoot,
     setLanguage: async (value) => {
       const next = SUPPORTED_PREFERENCES.has(value) ? value : DEFAULT_PREFERENCE;
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {

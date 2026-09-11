@@ -2,11 +2,9 @@
 // executeScript cannot start a second copy of the bundle before listeners exist.
 window.__openPromptManagerInjected = true;
 
-// COMMENT: Load localization before the in-page prompt UI is rendered. Dialog and
-// changelog helpers run after the shared language state is available.
+// COMMENT: Load localization before the in-page prompt UI is rendered. The shared
+// translator scopes itself to #opm-root on host pages; changelog localization also
+// observes only that extension-owned subtree.
 import(chrome.runtime.getURL('i18n.js'))
-  .then(() => Promise.all([
-    import(chrome.runtime.getURL('dialog-i18n.js')),
-    import(chrome.runtime.getURL('changelog-i18n.js')),
-  ]))
+  .then(() => import(chrome.runtime.getURL('changelog-i18n.js')))
   .catch(() => {});
