@@ -49,6 +49,8 @@
             "resources": [
                 "icons/*",
                 "changelog.html",
+                "changelog.zh-CN.html",
+                "changelog-i18n.js",
                 "i18n.js",
                 "dialog-i18n.js",
                 "storage/promptStorage.js",
