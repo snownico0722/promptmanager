@@ -1079,7 +1079,7 @@ class InputBoxHandler {
    */
   static _showPinToast(message) {
     const existing = document.getElementById('opm-pin-toast');
-    if (existing) existing.remove();
+    if (existing) { window.OPMI18n.detachRoot(existing); existing.remove(); }
 
     const toast = document.createElement('div');
     toast.id = 'opm-pin-toast';
@@ -1100,7 +1100,8 @@ class InputBoxHandler {
       'pointer-events:none',
     ].join(';');
     document.documentElement.appendChild(toast);
-    window.setTimeout(() => toast.remove(), 2200);
+    window.OPMI18n.attachRoot(toast);
+    window.setTimeout(() => { window.OPMI18n.detachRoot(toast); toast.remove(); }, 2200);
   }
 
   /**
@@ -1158,6 +1159,7 @@ class InputBoxHandler {
     root.appendChild(spotlight);
     root.appendChild(pill);
     document.documentElement.appendChild(root);
+    window.OPMI18n.attachRoot(root);
 
     const styleId = 'opm-pin-picker-style';
     let style = document.getElementById(styleId);
@@ -1312,6 +1314,7 @@ class InputBoxHandler {
       delete window.__OPM_PIN_PENDING_PROMPT__;
       document.documentElement.classList.remove('opm-pin-picker-active');
       removeListeners();
+      window.OPMI18n.detachRoot(root);
       root.remove();
       style?.remove();
     };
@@ -1373,7 +1376,7 @@ class InputBoxHandler {
         try {
           await InputBoxHandler.insertPrompt(
             editable,
-            queuedPrompt?.content || EXAMPLE_PROMPT,
+            queuedPrompt?.content || window.OPMI18n.t(EXAMPLE_PROMPT),
             null,
           );
         } catch (insertError) {

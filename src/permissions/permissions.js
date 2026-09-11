@@ -19,7 +19,8 @@ async function maybeResetOnboardingFromQuery() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+  await window.OPMI18n.ready;
   maybeResetOnboardingFromQuery().catch(console.error);
   const DISPLAY_MODE_KEY = 'displayMode';
   const DEFAULT_DISPLAY_MODE = 'hotCorner';
@@ -181,7 +182,7 @@ document.addEventListener('DOMContentLoaded', function () {
               return;
             }
             if (response?.error === 'permission_denied') {
-              alert(`Permission denied for ${providerKey}. Allow site access in the Chrome prompt to continue.`);
+              window.OPMI18n.alert(`Permission denied for ${providerKey}. Allow site access in the Chrome prompt to continue.`);
             }
             resolve(response || { ok: false, error: 'no_response' });
           },
@@ -201,12 +202,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
       chrome.permissions.request({ origins }, (granted) => {
         if (chrome.runtime.lastError) {
-          alert(`Could not request permission for ${providerKey}: ${chrome.runtime.lastError.message}`);
+          window.OPMI18n.alert(`Could not request permission for ${providerKey}: ${chrome.runtime.lastError.message}`);
           resolve({ ok: false, error: chrome.runtime.lastError.message });
           return;
         }
         if (!granted) {
-          alert(`Permission denied for ${providerKey}. Allow site access in the Chrome prompt to continue.`);
+          window.OPMI18n.alert(`Permission denied for ${providerKey}. Allow site access in the Chrome prompt to continue.`);
           resolve({ ok: false, error: 'permission_denied' });
           return;
         }
@@ -230,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function () {
         `<button type="button" id="perm-${key}" class="custom-button custom-provider-shortcut${isGranted ? ' is-granted' : ''}"
                 data-provider="${key}">
           <img src="${iconUrl}" alt="${key} icon" width="32" height="32" class="custom-rounded-circle">
-          <span class="custom-mb-0">${key}</span>
+          <span class="custom-mb-0" data-opm-user-content>${key}</span>
         </button>`,
       );
 
@@ -302,7 +303,7 @@ document.addEventListener('DOMContentLoaded', function () {
         chrome.permissions.remove({ origins: allPatterns }, () => {
           if (chrome.runtime.lastError) {
             console.error('Failed to remove permissions:', chrome.runtime.lastError);
-            alert('Could not remove all permissions. Try again from Settings.');
+            window.OPMI18n.alert('Could not remove all permissions. Try again from Settings.');
             return;
           }
           persistRevokedState();

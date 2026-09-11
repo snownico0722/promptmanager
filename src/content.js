@@ -364,10 +364,14 @@ const PanelRouter = (() => {
       }
     });
     container.append(title, info);
-    fetch(chrome.runtime.getURL(sourcePath))
-      .then(r => r.text())
-      .then(html => { info.innerHTML = html; })
-      .catch(err => console.error(`[PromptManager] Failed to load ${sourcePath}:`, err));
+    if (sourcePath === 'changelog.html') {
+      window.OPMChangelog.mount(info);
+    } else {
+      fetch(chrome.runtime.getURL(sourcePath))
+        .then(r => r.text())
+        .then(html => { info.innerHTML = html; })
+        .catch(err => console.error(`[PromptManager] Failed to load ${sourcePath}:`, err));
+    }
     ScrollVisibilityManager.observe(info);
     return container;
   };
@@ -495,6 +499,7 @@ const PanelRouter = (() => {
       return;
     }
 
+    if (view !== PanelView.CHANGELOG) window.OPMChangelog.unmount();
     const previousView = state.currentView;
     const shouldAnimate = listEl.classList.contains('opm-visible')
       && previousView !== null
@@ -544,6 +549,7 @@ const PanelRouter = (() => {
   };
 
   const reset = () => {
+    window.OPMChangelog.unmount();
     state.currentView = null;
   };
 
@@ -873,6 +879,7 @@ class PromptUIManager {
       document.body.appendChild(root);
       root.classList.add(`opm-${getMode()}`);
     }
+    window.OPMI18n.attachRoot(root);
     PromptUIManager.state.root = root;
     return root;
   }
@@ -1698,10 +1705,11 @@ class PromptUIManager {
         styles: { display: 'flex', flexDirection: 'column', gap: '4px', flex: '0 0 auto' }
       });
       const label = createEl('label', {
-        innerHTML: displayLabel,
+        attributes: { 'data-opm-user-content': '' },
         className: `opm-${getMode()}`,
         styles: { fontSize: '12px', fontWeight: '600', letterSpacing: '0.2px', opacity: '0.85', lineHeight: '1.2' }
       });
+      label.textContent = displayLabel;
       const inputField = createEl('textarea', {
         attributes: { rows: '2', placeholder: `${displayLabel} value` },
         className: `opm-textarea-field opm-${getMode()}`,
@@ -1805,7 +1813,7 @@ class PromptUIManager {
       styles: { borderRadius: '4px', flex: '0 0 auto' }
     });
     const contentArea = createEl('textarea', {
-      attributes: { placeholder: 'Write your prompt. Use hashtags for #variables#' },
+      attributes: { placeholder: 'Write your prompt. Use hashtags for #variables#', title: 'Variable names can contain letters, numbers and underscores.' },
       className: `opm-textarea-field opm-${getMode()}`,
       styles: { flex: '1 1 auto', minHeight: '120px', resize: 'vertical', boxSizing: 'border-box' }
     });
@@ -1846,7 +1854,7 @@ class PromptUIManager {
       e.stopPropagation();
       const t = titleIn.value.trim();
       const c = contentArea.value.trim();
-      if (!t || !c) { alert('Please fill in both title and content.'); return; }
+      if (!t || !c) { window.OPMI18n.alert('Please fill in both title and content.'); return; }
       const ps = await PromptStorageManager._ps();
       const update = { title: t, content: c };
       if (tagInput) update.tags = tagInput.getTags();
@@ -2440,6 +2448,7 @@ const PromptMediator = (() => {
     window.__OPM_INITIALIZED__ = true;
     state.initialized = true;
     
+    await window.OPMI18n.ready;
     // COMMENT: Load theme preference before UI injection
     try {
       window.isDarkModeForced = await PromptStorageManager.getForceDarkMode();

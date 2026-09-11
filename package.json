@@ -11,7 +11,10 @@
         "debug": "node --inspect-brk node_modules/jest/bin/jest.js",
         "build:prod": "cp src/manifest.prod.json src/manifest.json && echo 'Build for PROD'",
         "lint": "eslint src",
-        "lint:fix": "eslint src --fix"
+        "lint:fix": "eslint src --fix",
+        "test:i18n:unit": "node --test tests/localization/*.test.mjs",
+        "test:i18n:browser": "node tests/localization/browser.mjs",
+        "test:i18n": "npm run test:i18n:unit && npm run test:i18n:browser"
     },
     "devDependencies": {
         "@eslint/js": "^9.23.0",

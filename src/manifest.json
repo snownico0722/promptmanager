@@ -29,7 +29,7 @@
         }
     },
     "background": {
-        "service_worker": "service-worker-entry.js",
+        "service_worker": "service-worker.js",
         "type": "module"
     },
     "host_permissions": [],
@@ -50,8 +50,6 @@
                 "icons/*",
                 "changelog.html",
                 "changelog.zh-CN.html",
-                "changelog-i18n.js",
-                "i18n.js",
                 "storage/promptStorage.js",
                 "storage/pinnedInputStorage.js",
                 "storage/learnedInputStorage.js",
