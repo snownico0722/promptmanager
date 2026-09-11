@@ -1,3 +1,4 @@
+import './service-worker.js';
 import { getPrompts, onPromptsChanged } from './storage/promptStorage.js';
 
 const LANGUAGE_KEY = 'uiLanguage';
@@ -60,9 +61,9 @@ function scheduleLocalizedContextMenu(delay = 360) {
   }, delay);
 }
 
-// COMMENT: Keep the original worker intact and layer localization around its menu lifecycle.
-await import('./service-worker.js');
-
+// COMMENT: The original worker remains the source of truth for behavior. Its listeners
+// register first via the static import above; this layer reapplies localized menu titles
+// shortly afterward without changing click handling or prompt storage semantics.
 chrome.runtime.onInstalled.addListener(() => scheduleLocalizedContextMenu(500));
 chrome.runtime.onStartup.addListener(() => scheduleLocalizedContextMenu(500));
 chrome.storage.onChanged.addListener((changes, areaName) => {
