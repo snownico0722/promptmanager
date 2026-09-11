@@ -1,7 +1,8 @@
 import './service-worker.js';
-import { getPrompts, onPromptsChanged } from './storage/promptStorage.js';
+import { getPrompts, onPromptsChanged, savePrompt } from './storage/promptStorage.js';
 
 const LANGUAGE_KEY = 'uiLanguage';
+const LOCALIZED_SAVE_MENU_ID = 'save-as-prompt-i18n';
 let rebuildTimer = null;
 
 async function isSimplifiedChinese() {
@@ -29,7 +30,7 @@ async function rebuildLocalizedContextMenu() {
     contexts: ['all'],
   });
   chrome.contextMenus.create({
-    id: 'save-as-prompt',
+    id: LOCALIZED_SAVE_MENU_ID,
     parentId: 'open-prompt-manager',
     title: saveNewPrompt,
     contexts: ['selection'],
@@ -61,9 +62,51 @@ function scheduleLocalizedContextMenu(delay = 360) {
   }, delay);
 }
 
-// COMMENT: The original worker remains the source of truth for behavior. Its listeners
-// register first via the static import above; this layer reapplies localized menu titles
-// shortly afterward without changing click handling or prompt storage semantics.
+async function saveSelectionAsPrompt(info, tab) {
+  const selectedText = String(info?.selectionText || '').trim();
+  if (!selectedText || !tab?.id) return;
+
+  const zh = await isSimplifiedChinese();
+  const titleQuestion = zh ? '请输入提示词标题' : 'Enter a title for your prompt';
+  const missingTitle = zh ? '请为提示词添加标题。' : 'Please add a title to your prompt.';
+
+  const [{ result: title } = {}] = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: (message) => window.prompt(message, ''),
+    args: [titleQuestion],
+  }).catch(() => []);
+
+  if (title === null || title === undefined) return;
+  const cleanTitle = String(title).trim();
+  if (!cleanTitle) {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (message) => window.alert(message),
+      args: [missingTitle],
+    }).catch(() => {});
+    return;
+  }
+
+  await savePrompt({
+    title: cleanTitle,
+    content: selectedText,
+    tags: [],
+  });
+}
+
+// COMMENT: The localized save item deliberately uses a different id so the original
+// worker's save-as-prompt handler ignores it. Existing prompt item ids stay unchanged,
+// so insertion still uses the upstream behavior without duplication.
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info?.menuItemId !== LOCALIZED_SAVE_MENU_ID) return;
+  saveSelectionAsPrompt(info, tab).catch((error) => {
+    console.warn('[PromptManager] Failed to save selected text as prompt:', error);
+  });
+});
+
+// COMMENT: The original worker remains the source of truth for all other behavior. Its
+// listeners register first via the static import above; this layer reapplies localized
+// menu titles shortly afterward without changing normal prompt insertion semantics.
 chrome.runtime.onInstalled.addListener(() => scheduleLocalizedContextMenu(500));
 chrome.runtime.onStartup.addListener(() => scheduleLocalizedContextMenu(500));
 chrome.storage.onChanged.addListener((changes, areaName) => {
