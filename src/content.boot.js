@@ -2,7 +2,9 @@
 // executeScript cannot start a second copy of the bundle before listeners exist.
 window.__openPromptManagerInjected = true;
 
-// COMMENT: Load the lightweight UI localization layer before the in-page prompt UI
-// is rendered. The module observes later DOM changes, so dynamically-created labels
-// and dialogs are translated as well.
-import(chrome.runtime.getURL('i18n.js')).catch(() => {});
+// COMMENT: Load localization before the in-page prompt UI is rendered. The dialog
+// wrapper runs after i18n so native prompt() calls from the service worker use the
+// same selected language as the rest of the extension UI.
+import(chrome.runtime.getURL('i18n.js'))
+  .then(() => import(chrome.runtime.getURL('dialog-i18n.js')))
+  .catch(() => {});
