@@ -48,6 +48,7 @@
             "resources": [
                 "icons/*",
                 "changelog.html",
+                "i18n.js",
                 "storage/promptStorage.js",
                 "storage/pinnedInputStorage.js",
                 "storage/learnedInputStorage.js",
