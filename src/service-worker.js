@@ -937,7 +937,11 @@ function createPromptContextMenu() {
   return menuRebuildPromise;
 }
 
-globalThis.OPMI18n.subscribe(createPromptContextMenu);
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && Object.hasOwn(changes, 'uiLanguage')) {
+    createPromptContextMenu();
+  }
+});
 
 // On install or update, create the context menu
 chrome.runtime.onInstalled.addListener(() => {
@@ -1059,8 +1063,8 @@ async function clearStaleDevOnboardingFlag() {
   }
 }
 
-// Rebuild once on worker wake, including extension reloads.
-createPromptContextMenu();
+// Context menus persist while the MV3 worker sleeps. Rebuild only for actual
+// lifecycle/data/language changes, not on every worker wake.
 clearStaleDevOnboardingFlag();
 syncRegisteredContentScripts().catch((error) => {
   console.warn('Failed to sync registered content scripts on worker start:', error);

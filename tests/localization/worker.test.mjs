@@ -12,7 +12,21 @@ function setup({ prompts = [{ uuid: 'a', title: 'Settings', content: 'Copy' }, {
   const chrome = {
     i18n: { getUILanguage: () => 'en-US' },
     runtime: { onInstalled: event(), onStartup: event(), onConnect: event(), onMessage: event(), onMessageExternal: event(), lastError: null },
-    storage: { local: { get: async () => ({ uiLanguage: 'zh-CN' }), set: async () => {}, remove: async () => {} }, onChanged: event() },
+    storage: {
+      local: {
+        get: async () => ({ uiLanguage: chrome.__storedLanguage || 'zh-CN' }),
+        set: async values => {
+          if (!Object.hasOwn(values, 'uiLanguage')) return;
+          const oldValue = chrome.__storedLanguage || 'zh-CN';
+          chrome.__storedLanguage = values.uiLanguage;
+          queueMicrotask(() => {
+            for (const listener of chrome.storage.onChanged.listeners) listener({ uiLanguage: { oldValue, newValue: values.uiLanguage } }, 'local');
+          });
+        },
+        remove: async () => {},
+      },
+      onChanged: event(),
+    },
     contextMenus: {
       onClicked: event(),
       removeAll(cb) { removes++; queueMicrotask(() => { items.clear(); cb(); }); },
@@ -46,6 +60,14 @@ function setup({ prompts = [{ uuid: 'a', title: 'Settings', content: 'Copy' }, {
   vm.runInContext(worker + '\n globalThis.drainMenu = createPromptContextMenu;', context);
   return { context, chrome, items, errors, saves, scripts, answers, changes, get removes() { return removes; } };
 }
+
+test('worker wake does not rebuild persistent context menus by itself', async () => {
+  const r = setup();
+  await r.context.OPMI18n.ready;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(r.removes, 0);
+  assert.equal(r.items.size, 0);
+});
 
 test('one menu owner, deterministic order, translated defaults, literal user titles', async () => {
   const r = setup(); await r.context.drainMenu();
