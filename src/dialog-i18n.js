@@ -6,12 +6,20 @@
   const nativePrompt = typeof window.prompt === 'function' ? window.prompt.bind(window) : null;
   if (!nativePrompt) return;
 
-  // COMMENT: service-worker executeScript() runs in the extension isolated world. Translate
-  // the native prompt dialog there as well; alert/confirm are already wrapped by i18n.js.
-  window.prompt = (message, defaultValue) => {
-    const translated = window.OPMI18n?.t
-      ? window.OPMI18n.t(String(message))
-      : String(message);
-    return nativePrompt(translated, defaultValue);
+  const DIALOG_ZH = {
+    'Enter a title for your prompt': '请输入提示词标题',
+    'Please add a title to your prompt.': '请为提示词添加标题。',
   };
+
+  function translateDialog(message) {
+    const source = String(message);
+    const shared = window.OPMI18n?.t ? window.OPMI18n.t(source) : source;
+    if (shared !== source) return shared;
+    if (window.OPMI18n?.getLanguage?.() === 'zh-CN') return DIALOG_ZH[source] || source;
+    return source;
+  }
+
+  // COMMENT: service-worker executeScript() runs in the extension isolated world. Translate
+  // native prompt() there as well; alert/confirm are wrapped by the shared i18n layer.
+  window.prompt = (message, defaultValue) => nativePrompt(translateDialog(message), defaultValue);
 })();
