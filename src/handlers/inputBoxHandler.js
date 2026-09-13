@@ -1077,13 +1077,13 @@ class InputBoxHandler {
    * COMMENT: Small on-page confirmation after pinning or unpinning.
    * @param {string} message
    */
-  static _showPinToast(message) {
+  static _showPinToast(key, params = {}) {
     const existing = document.getElementById('opm-pin-toast');
-    if (existing) existing.remove();
+    if (existing) { existing.__opmDisposeI18n?.(); existing.remove(); }
 
     const toast = document.createElement('div');
     toast.id = 'opm-pin-toast';
-    toast.textContent = message;
+    window.OPMI18n.bind(toast, key, params);
     toast.setAttribute('role', 'status');
     toast.style.cssText = [
       'position:fixed',
@@ -1100,7 +1100,9 @@ class InputBoxHandler {
       'pointer-events:none',
     ].join(';');
     document.documentElement.appendChild(toast);
-    window.setTimeout(() => toast.remove(), 2200);
+    const dispose = window.OPMI18n.registerRoot(toast);
+    toast.__opmDisposeI18n = dispose;
+    window.setTimeout(() => { dispose(); toast.remove(); }, 2200);
   }
 
   /**
@@ -1121,7 +1123,6 @@ class InputBoxHandler {
       window.__OPM_PIN_PENDING_PROMPT__ = pendingPrompt;
     }
 
-    const EXAMPLE_PROMPT = 'Example Prompt';
     const INPUT_PAD = 6;
     const MOUSE_SPOT_SIZE = 56;
     let highlighted = null;
@@ -1145,12 +1146,12 @@ class InputBoxHandler {
 
     const pillText = document.createElement('span');
     pillText.className = 'opm-pin-picker-pill-text';
-    pillText.textContent = 'Choose an input field to load prompts into';
+    window.OPMI18n.bind(pillText, 'inputPicker.title');
 
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'opm-pin-picker-close';
-    closeBtn.setAttribute('aria-label', 'Cancel input picker');
+    window.OPMI18n.bind(closeBtn, 'inputPicker.cancel', {}, 'aria-label');
     closeBtn.innerHTML = '&times;';
 
     pill.appendChild(pillText);
@@ -1158,6 +1159,7 @@ class InputBoxHandler {
     root.appendChild(spotlight);
     root.appendChild(pill);
     document.documentElement.appendChild(root);
+    const disposeI18n = window.OPMI18n.registerRoot(root);
 
     const styleId = 'opm-pin-picker-style';
     let style = document.getElementById(styleId);
@@ -1312,6 +1314,7 @@ class InputBoxHandler {
       delete window.__OPM_PIN_PENDING_PROMPT__;
       document.documentElement.classList.remove('opm-pin-picker-active');
       removeListeners();
+      disposeI18n();
       root.remove();
       style?.remove();
     };
@@ -1373,7 +1376,7 @@ class InputBoxHandler {
         try {
           await InputBoxHandler.insertPrompt(
             editable,
-            queuedPrompt?.content || EXAMPLE_PROMPT,
+            queuedPrompt?.content || window.OPMI18n.t('inputPicker.examplePrompt'),
             null,
           );
         } catch (insertError) {
@@ -1384,7 +1387,7 @@ class InputBoxHandler {
         return { ok: true, hostname: window.location.hostname, label: descriptor.label };
       } catch (error) {
         dismissPicker();
-        InputBoxHandler._showPinToast('Could not pin this input');
+        InputBoxHandler._showPinToast('inputPicker.pinFailed');
         return { ok: false, error: error.message || 'pin_failed' };
       }
     };
@@ -1449,7 +1452,7 @@ class InputBoxHandler {
       }
       InputBoxHandler._invalidateInputCache();
       if (!silent && (removed || learnedRemoved)) {
-        InputBoxHandler._showPinToast(`Custom website removed for ${window.location.hostname}`);
+        InputBoxHandler._showPinToast('inputPicker.customRemoved', { host: window.location.hostname });
       }
       return {
         ok: true,
@@ -1468,7 +1471,7 @@ class InputBoxHandler {
    */
   static async resetInputDetection({ pendingPrompt } = {}) {
     await InputBoxHandler.clearPinnedInput({ silent: true });
-    InputBoxHandler._showPinToast('Click the input field on the page');
+    InputBoxHandler._showPinToast('inputPicker.clickField');
     return InputBoxHandler.startPinPickerMode({ pendingPrompt });
   }
 

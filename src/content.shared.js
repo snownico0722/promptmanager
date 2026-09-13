@@ -29,6 +29,7 @@
     const PanelView = window.PanelView;
     const PromptUIManager = window.PromptUIManager;
     const PromptStorageManager = window.PromptStorageManager;
+    const t = (key, params, fallback) => window.OPMI18n.t(key, params, fallback);
     if (!createEl || !getMode || !showEl || !hideEl || !SELECTORS || !PanelRouter || !PanelView || !PromptUIManager || !PromptStorageManager) {
       window.__OPM_PROMPT_SHARED__ = false;
       console.warn('[PromptManager] Shared helpers unavailable; deferring initialization.');
@@ -54,12 +55,12 @@
     };
 
     const ICON_SVGS = {
-      list: `<img src="${chrome.runtime.getURL('icons/list.svg')}" width="16" height="16" alt="List Prompts" title="List Prompts" style="filter: ${iconFilter()}">`,
-      add: `<img src="${chrome.runtime.getURL('icons/new.svg')}" width="16" height="16" alt="Add Prompt" title="Add Prompt" style="filter: ${iconFilter()}">`,
-      delete: `<img src="${chrome.runtime.getURL('icons/delete.svg')}" width="16" height="16" alt="Delete" title="Delete" style="filter: ${iconFilter()}">`,
-      edit: `<img src="${chrome.runtime.getURL('icons/edit.svg')}" width="16" height="16" alt="Edit" title="Edit" style="filter: ${iconFilter()}">`,
-      settings: `<img src="${chrome.runtime.getURL('icons/settings.svg')}" width="16" height="16" alt="Settings" title="Settings" style="filter: ${iconFilter()}">`,
-      changelog: `<img src="${chrome.runtime.getURL('icons/notes.svg')}" width="16" height="16" alt="Changelog" title="Changelog" style="filter: ${iconFilter()}">`,
+      list: `<img src="${chrome.runtime.getURL('icons/list.svg')}" width="16" height="16" data-i18n-alt="prompt.list" alt="List Prompts" data-i18n-title="prompt.list" title="List Prompts" style="filter: ${iconFilter()}">`,
+      add: `<img src="${chrome.runtime.getURL('icons/new.svg')}" width="16" height="16" data-i18n-alt="prompt.add" alt="Add Prompt" data-i18n-title="prompt.add" title="Add Prompt" style="filter: ${iconFilter()}">`,
+      delete: `<img src="${chrome.runtime.getURL('icons/delete.svg')}" width="16" height="16" data-i18n-alt="common.delete" alt="Delete" data-i18n-title="common.delete" title="Delete" style="filter: ${iconFilter()}">`,
+      edit: `<img src="${chrome.runtime.getURL('icons/edit.svg')}" width="16" height="16" data-i18n-alt="common.edit" alt="Edit" data-i18n-title="common.edit" title="Edit" style="filter: ${iconFilter()}">`,
+      settings: `<img src="${chrome.runtime.getURL('icons/settings.svg')}" width="16" height="16" data-i18n-alt="settings.title" alt="Settings" data-i18n-title="settings.title" title="Settings" style="filter: ${iconFilter()}">`,
+      changelog: `<img src="${chrome.runtime.getURL('icons/notes.svg')}" width="16" height="16" data-i18n-alt="changelog.title" alt="Changelog" data-i18n-title="changelog.title" title="Changelog" style="filter: ${iconFilter()}">`,
     };
 
     const TagService = (() => {
@@ -104,7 +105,7 @@
         const tagsSet = new Set(uniqueNormalizedTags(initialTags));
         const row = createEl('div', { className: `opm-tag-row opm-${getMode()}` });
         const pills = createEl('div', { className: 'opm-tags-container' });
-        const input = createEl('input', { attributes: { type: 'text', placeholder: 'Enter tags here.' }, className: `opm-tag-input opm-${getMode()}` });
+        const input = createEl('input', { attributes: { type: 'text', 'data-i18n-placeholder': 'tags.inputPlaceholder', placeholder: t('tags.inputPlaceholder') }, className: `opm-tag-input opm-${getMode()}` });
         const suggestions = createEl('div', { className: `opm-tag-suggestions opm-${getMode()}`, styles: { display: 'none' } });
         let activeIndex = -1; let options = [];
         let destroyed = false;
@@ -112,7 +113,8 @@
         const renderPills = () => {
           pills.innerHTML = '';
           Array.from(tagsSet).forEach(tag => {
-            const pill = createEl('span', { className: `opm-tag-pill opm-${getMode()}`, innerHTML: String(tag) });
+            const pill = createEl('span', { className: `opm-tag-pill opm-${getMode()}` });
+            pill.textContent = String(tag);
             const removeBtn = createEl('button', { className: 'opm-tag-remove', innerHTML: '×' });
             removeBtn.addEventListener('click', (e) => {
               e.stopPropagation();
@@ -159,7 +161,8 @@
           options = await TagService.getSuggestions({ term: input.value, exclude: tagsSet });
           suggestions.innerHTML = '';
           options.forEach((t, idx) => {
-            const item = createEl('div', { className: 'opm-tag-suggestion-item', innerHTML: t });
+            const item = createEl('div', { className: 'opm-tag-suggestion-item' });
+            item.textContent = t;
             if (idx === activeIndex) item.classList.add('active');
             item.addEventListener('mousedown', e => {
               e.preventDefault();
@@ -280,8 +283,9 @@
             });
           };
 
-          const allPill = makePill('All', (selectedTag || 'all') === 'all');
+          const allPill = makePill(t('tags.all'), (selectedTag || 'all') === 'all');
           allPill.dataset.tag = 'all';
+          allPill.dataset.i18n = 'tags.all';
           allPill.addEventListener('click', e => { e.stopPropagation(); if (typeof onSelect === 'function') onSelect('all'); updateSelected('all'); });
           bar.appendChild(allPill);
 
@@ -356,8 +360,8 @@
               src="${chrome.runtime.getURL('icons/drag_indicator.svg')}" 
               width="16" 
               height="16" 
-              alt="Drag handle" 
-              title="Drag to reorder"
+              data-i18n-alt="tags.dragHandle" alt="Drag handle"
+              data-i18n-title="tags.dragReorder" title="Drag to reorder"
               style="display: block; opacity: 0.9; filter: ${iconFilter()}"
             >
           `,
@@ -386,7 +390,7 @@
           const editIcon = Elements.createIconButton('edit', (e) => { e.stopPropagation(); window.PromptUIManager.showEditForm(prompt); });
           const deleteIcon = Elements.createIconButton('delete', (e) => {
             e.stopPropagation();
-            if (confirm(`Delete "${prompt.title}"?`)) window.PromptUIManager.deletePrompt(prompt.uuid);
+            if (confirm(t('prompt.deleteConfirmNamed', { title: prompt.title }))) window.PromptUIManager.deletePrompt(prompt.uuid);
           });
           actions.append(editIcon, deleteIcon);
 
@@ -442,7 +446,8 @@
           });
           const text = createEl('span', {
             className: 'opm-opd-catalog-link-text',
-            innerHTML: 'Import Community Prompts',
+            attributes: { 'data-i18n': 'prompt.importCommunity' },
+            textContent: t('prompt.importCommunity'),
           });
           link.append(icon, text);
           link.addEventListener('click', (e) => e.stopPropagation());
@@ -456,7 +461,7 @@
           const search = createEl('input', {
             id: SELECTORS.PROMPT_SEARCH_INPUT,
             className: `opm-search-input opm-${getMode()}`,
-            attributes: { type: 'text', placeholder: 'Type to search', style: 'border-radius: 4px;' }
+            attributes: { type: 'text', 'data-i18n-placeholder': 'prompt.search', placeholder: t('prompt.search'), style: 'border-radius: 4px;' }
           });
           search.addEventListener('input', debounce(e => {
             PromptUIManager.filterPromptItems(e.target.value);
@@ -465,9 +470,9 @@
           menu.appendChild(Elements.createMenuBar());
           return menu;
         },
-        createToggleRow({ labelText, getValue, onToggle }) {
+        createToggleRow({ labelKey, labelText, getValue, onToggle }) {
           const row = createEl('div', { styles: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } });
-          const label = createEl('label', { innerHTML: labelText, styles: { fontSize: '14px' } });
+          const label = createEl('label', { attributes: labelKey ? { 'data-i18n': labelKey } : undefined, textContent: labelKey ? t(labelKey) : labelText, styles: { fontSize: '14px' } });
           const toggleSwitch = createEl('div', {
             className: `opm-toggle-switch opm-${getMode()}`
           });
@@ -495,13 +500,14 @@
           const wrapper = createEl('div', { styles: { display: 'flex', flexDirection: 'column', gap: '8px' } });
           const title = createEl('div', {
             styles: { fontWeight: 'bold', fontSize: '14px' },
-            innerHTML: 'Launcher mode',
+            attributes: { 'data-i18n': 'settings.launcherMode' },
+            textContent: t('settings.launcherMode'),
           });
           const optionsWrap = createEl('div', { styles: { display: 'flex', flexDirection: 'column', gap: '6px' } });
           const modes = [
-            { value: 'standard', label: 'Floating button' },
-            { value: 'hotCorner', label: 'Hot corner' },
-            { value: 'invisible', label: 'Sidebar or shortcut' },
+            { value: 'standard', key: 'settings.floatingButton' },
+            { value: 'hotCorner', key: 'settings.hotCorner' },
+            { value: 'invisible', key: 'settings.sidebarOrShortcut' },
           ];
 
           const syncChecked = (activeMode) => {
@@ -510,7 +516,7 @@
             });
           };
 
-          modes.forEach(({ value, label }) => {
+          modes.forEach(({ value, key }) => {
             const row = createEl('label', {
               styles: {
                 display: 'flex',
@@ -529,7 +535,7 @@
                 .then(() => syncChecked(value))
                 .catch(err => console.error('[PromptManager] Launcher mode change failed:', err));
             });
-            row.append(radio, createEl('span', { innerHTML: label }));
+            row.append(radio, createEl('span', { attributes: { 'data-i18n': key }, textContent: t(key) }));
             optionsWrap.appendChild(row);
           });
 
@@ -687,22 +693,22 @@
       };
 
       const Views = {
-        createPromptForm({ initialTitle = '', initialContent = '', submitLabel = 'Save', onSubmit }) {
+        createPromptForm({ initialTitle = '', initialContent = '', submitKey = 'common.save', onSubmit }) {
           const form = createEl('div', { className: `opm-form-container opm-create-form opm-${getMode()}`, styles: { padding: '0', display: 'flex', flexDirection: 'column', gap: '4px' } });
-          const titleIn = createEl('input', { attributes: { placeholder: 'Prompt Title' }, className: `opm-input-field opm-${getMode()}`, styles: { borderRadius: '4px' } });
+          const titleIn = createEl('input', { attributes: { 'data-i18n-placeholder': 'prompt.title', placeholder: t('prompt.title') }, className: `opm-input-field opm-${getMode()}`, styles: { borderRadius: '4px' } });
           const contentArea = createEl('textarea', {
-            attributes: { placeholder: 'Write your prompt. Use hashtags for #variables#' },
+            attributes: { 'data-i18n-placeholder': 'prompt.contentPlaceholderShort', placeholder: t('prompt.contentPlaceholderShort'), 'data-i18n-title': 'prompt.variableSyntaxHelp', title: t('prompt.variableSyntaxHelp') },
             className: `opm-textarea-field opm-${getMode()}`,
             styles: { flex: '1 1 auto', minHeight: '0', height: 'auto' }
           });
           titleIn.value = initialTitle;
           contentArea.value = initialContent;
-          const saveBtn = createEl('button', { innerHTML: submitLabel, className: `opm-button opm-${getMode()}` });
+          const saveBtn = createEl('button', { attributes: { 'data-i18n': submitKey }, textContent: t(submitKey), className: `opm-button opm-${getMode()}` });
           saveBtn.addEventListener('click', async e => {
             e.stopPropagation();
-            const t = titleIn.value.trim(), c = contentArea.value.trim();
-            if (!t || !c) { alert('Please fill in both title and content.'); return; }
-            if (typeof onSubmit === 'function') await onSubmit({ title: t, content: c });
+            const promptTitle = titleIn.value.trim(), promptContent = contentArea.value.trim();
+            if (!promptTitle || !promptContent) { alert(t('prompt.validationTitleContent')); return; }
+            if (typeof onSubmit === 'function') await onSubmit({ title: promptTitle, content: promptContent });
           });
           form.append(titleIn, contentArea, saveBtn);
           form.addEventListener('click', e => e.stopPropagation());
@@ -777,9 +783,9 @@
           const enableTags = await window.PromptStorageManager.getEnableTags();
 
           const form = createEl('div', { className: `opm-form-container opm-create-form opm-${getMode()}`, styles: { padding: '0', display: 'flex', flexDirection: 'column', gap: '8px' } });
-          const titleIn = createEl('input', { attributes: { placeholder: 'Prompt Title' }, className: `opm-input-field opm-${getMode()}`, styles: { borderRadius: '4px' } });
+          const titleIn = createEl('input', { attributes: { 'data-i18n-placeholder': 'prompt.title', placeholder: t('prompt.title') }, className: `opm-input-field opm-${getMode()}`, styles: { borderRadius: '4px' } });
           const contentArea = createEl('textarea', {
-            attributes: { placeholder: 'Enter prompt. # for #variables#' },
+            attributes: { 'data-i18n-placeholder': 'prompt.contentPlaceholderCompact', placeholder: t('prompt.contentPlaceholderCompact'), 'data-i18n-title': 'prompt.variableSyntaxHelp', title: t('prompt.variableSyntaxHelp') },
             className: `opm-textarea-field opm-create-textarea opm-${getMode()}`,
             styles: { flex: '1 1 auto', minHeight: '0', height: 'auto' }
           });
@@ -794,14 +800,14 @@
             tagsBlock.append(tagInput.element);
           }
 
-          const saveBtn = createEl('button', { innerHTML: 'Create Prompt', className: `opm-button opm-${getMode()}` });
+          const saveBtn = createEl('button', { attributes: { 'data-i18n': 'prompt.create' }, textContent: t('prompt.create'), className: `opm-button opm-${getMode()}` });
           saveBtn.addEventListener('click', async e => {
             e.stopPropagation();
-            const t = titleIn.value.trim(), c = contentArea.value.trim();
-            if (!t || !c) { alert('Please fill in both title and content.'); return; }
+            const promptTitle = titleIn.value.trim(), promptContent = contentArea.value.trim();
+            if (!promptTitle || !promptContent) { alert(t('prompt.validationTitleContent')); return; }
             const tags = enableTags && tagInput ? tagInput.getTags() : [];
-            const res = await window.PromptStorageManager.savePrompt({ title: t, content: c, tags });
-            if (!res.success) { alert('Error saving prompt.'); return; }
+            const res = await window.PromptStorageManager.savePrompt({ title: promptTitle, content: promptContent, tags });
+            if (!res.success) { alert(t('prompt.saveErrorGeneric')); return; }
             window.PanelRouter.mount(window.PanelView.LIST);
           });
 
@@ -813,7 +819,7 @@
         },
         createSettingsForm() {
           const form = createEl('div', { className: `opm-form-container opm-${getMode()}`, styles: { padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' } });
-          const title = createEl('div', { styles: { fontWeight: 'bold', fontSize: '16px', marginBottom: '10px' }, innerHTML: 'Settings' });
+          const title = createEl('div', { attributes: { 'data-i18n': 'settings.title' }, styles: { fontWeight: 'bold', fontSize: '16px', marginBottom: '10px' }, textContent: t('settings.title') });
           const settings = createEl('div', { styles: { display: 'flex', flexDirection: 'column', gap: '12px' } });
 
           // COMMENT: Format stored shortcut for display in the in-page settings panel
@@ -828,36 +834,41 @@
             return parts.join(' + ');
           };
 
-          const shortcutTitle = createEl('div', { styles: { fontWeight: 'bold', fontSize: '14px', marginTop: '2px' }, innerHTML: 'Open / close shortcut' });
+          const shortcutTitle = createEl('div', { attributes: { 'data-i18n': 'settings.openCloseShortcut' }, styles: { fontWeight: 'bold', fontSize: '14px', marginTop: '2px' }, textContent: t('settings.openCloseShortcut') });
           const shortcutRow = createEl('div', { styles: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' } });
           const shortcutDisplay = createEl('span', {
             className: `opm-${getMode()}`,
             styles: { fontSize: '13px', fontWeight: '600', opacity: '0.9' },
             innerHTML: '…'
           });
-          const recordShortcutBtn = createEl('button', { innerHTML: 'Record', className: `opm-button opm-${getMode()}` });
+          const recordShortcutBtn = createEl('button', { attributes: { 'data-i18n': 'settings.record' }, textContent: t('settings.record'), className: `opm-button opm-${getMode()}` });
 
           const refreshShortcutDisplay = async () => {
             const shortcut = await window.PromptStorageManager.getKeyboardShortcut();
-            shortcutDisplay.innerHTML = formatKeyboardShortcut(shortcut);
+            shortcutDisplay.removeAttribute('data-i18n');
+            shortcutDisplay.textContent = formatKeyboardShortcut(shortcut);
           };
 
           recordShortcutBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (shortcutRecordingHandler) {
               stopShortcutRecording();
-              recordShortcutBtn.innerHTML = 'Record';
+              recordShortcutBtn.dataset.i18n = 'settings.record';
+              recordShortcutBtn.textContent = t('settings.record');
               refreshShortcutDisplay().catch(() => {});
               return;
             }
-            recordShortcutBtn.innerHTML = 'Press keys…';
-            shortcutDisplay.innerHTML = 'Listening…';
+            recordShortcutBtn.dataset.i18n = 'settings.pressKeys';
+            recordShortcutBtn.textContent = t('settings.pressKeys');
+            shortcutDisplay.dataset.i18n = 'settings.listening';
+            shortcutDisplay.textContent = t('settings.listening');
             shortcutRecordingHandler = async (event) => {
               event.preventDefault();
               event.stopPropagation();
               if (event.key === 'Escape') {
                 stopShortcutRecording();
-                recordShortcutBtn.innerHTML = 'Record';
+                recordShortcutBtn.dataset.i18n = 'settings.record';
+                recordShortcutBtn.textContent = t('settings.record');
                 refreshShortcutDisplay().catch(() => {});
                 return;
               }
@@ -871,7 +882,8 @@
                 key: event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase()
               });
               stopShortcutRecording();
-              recordShortcutBtn.innerHTML = 'Record';
+              recordShortcutBtn.dataset.i18n = 'settings.record';
+              recordShortcutBtn.textContent = t('settings.record');
               refreshShortcutDisplay().catch(() => {});
             };
             document.addEventListener('keydown', shortcutRecordingHandler, true);
@@ -888,12 +900,12 @@
           }));
 
           settings.appendChild(Elements.createToggleRow({
-            labelText: 'Append prompts to text',
+            labelKey: 'settings.appendPrompts',
             getValue: async () => await window.PromptStorageManager.getDisableOverwrite(),
             onToggle: async (active) => { await window.PromptStorageManager.saveDisableOverwrite(active); }
           }));
 
-          const tagMgmtTitle = createEl('div', { styles: { fontWeight: 'bold', fontSize: '14px', marginTop: '12px', display: 'none' }, innerHTML: 'Tag management' });
+          const tagMgmtTitle = createEl('div', { attributes: { 'data-i18n': 'tags.management' }, styles: { fontWeight: 'bold', fontSize: '14px', marginTop: '12px', display: 'none' }, textContent: t('tags.management') });
           const tagMgmtContainer = createEl('div', { styles: { display: 'none', flexDirection: 'column', gap: '6px' } });
 
           const syncTagManagementVisibility = async (enabled) => {
@@ -902,7 +914,7 @@
           };
 
           settings.appendChild(Elements.createToggleRow({
-            labelText: 'Enable tags',
+            labelKey: 'settings.enableTags',
             getValue: async () => await window.PromptStorageManager.getEnableTags(),
             onToggle: async (active) => {
               await window.PromptStorageManager.saveEnableTags(active);
@@ -912,7 +924,7 @@
           }));
 
           settings.appendChild(Elements.createToggleRow({
-            labelText: 'Force Dark Mode',
+            labelKey: 'settings.forceDarkModePanel',
             getValue: async () => {
               const enabled = await window.PromptStorageManager.getForceDarkMode();
               window.isDarkModeForced = !!enabled;
@@ -925,18 +937,18 @@
             }
           }));
 
-          const dataSectionTitle = createEl('div', { styles: { fontWeight: 'bold', fontSize: '14px', marginTop: '6px' }, innerHTML: 'Prompt Management' });
+          const dataSectionTitle = createEl('div', { attributes: { 'data-i18n': 'settings.promptManagementPanel' }, styles: { fontWeight: 'bold', fontSize: '14px', marginTop: '6px' }, textContent: t('settings.promptManagementPanel') });
           const dataActions = createEl('div', { styles: { display: 'flex', gap: '8px' } });
-          const exportBtn = createEl('button', { innerHTML: 'Export', className: `opm-button opm-${getMode()}` });
+          const exportBtn = createEl('button', { attributes: { 'data-i18n': 'common.export' }, textContent: t('common.export'), className: `opm-button opm-${getMode()}` });
           exportBtn.addEventListener('click', async e => {
             e.stopPropagation();
             try {
               await window.PromptStorageManager.exportPrompts();
             } catch (err) {
-              alert('Export failed.');
+              alert(t('settings.exportFailed'));
             }
           });
-          const importBtn = createEl('button', { innerHTML: 'Import', className: `opm-button opm-${getMode()}` });
+          const importBtn = createEl('button', { attributes: { 'data-i18n': 'common.import' }, textContent: t('common.import'), className: `opm-button opm-${getMode()}` });
           importBtn.addEventListener('click', async e => {
             e.stopPropagation();
             const fileInput = createEl('input', { attributes: { type: 'file', accept: '.json' } });
@@ -946,10 +958,11 @@
                 try {
                   const merged = await window.PromptStorageManager.mergeImportedPrompts(file);
                   window.PromptUIManager.refreshPromptList(merged);
-                  importBtn.textContent = 'Import successful!';
-                  setTimeout(() => importBtn.textContent = 'Import', window.IMPORT_SUCCESS_RESET_MS || 2000);
+                  importBtn.dataset.i18n = 'settings.importSuccessShort';
+                  importBtn.textContent = t('settings.importSuccessShort');
+                  setTimeout(() => { importBtn.dataset.i18n = 'common.import'; importBtn.textContent = t('common.import'); }, window.IMPORT_SUCCESS_RESET_MS || 2000);
                 } catch (err) {
-                  alert('Invalid JSON file format.');
+                  alert(t('settings.invalidJson'));
                 }
               }
             });
@@ -957,18 +970,19 @@
           });
           dataActions.append(exportBtn, importBtn);
           const deleteAllBtn = createEl('button', {
-            innerHTML: 'Delete all prompts',
+            attributes: { 'data-i18n': 'settings.deleteAll' },
+            textContent: t('settings.deleteAll'),
             className: `opm-button opm-${getMode()}`,
             styles: { backgroundColor: '#9CA3AF', marginTop: '4px' }
           });
           deleteAllBtn.addEventListener('click', async e => {
             e.stopPropagation();
-            if (!confirm('Delete ALL prompts? This cannot be undone.')) return;
+            if (!confirm(t('settings.deleteAllConfirmShort'))) return;
             try {
               await window.PromptStorageManager.setPrompts([]);
               window.PanelRouter.mount(window.PanelView.SETTINGS);
             } catch (_) {
-              alert('Failed to delete prompts.');
+              alert(t('settings.deleteFailed'));
             }
           });
 
@@ -1064,8 +1078,8 @@
                       src="${chrome.runtime.getURL('icons/drag_indicator.svg')}" 
                       width="14"
                       height="14"
-                      alt="Drag"
-                      title="Drag to reorder"
+                      data-i18n-alt="tags.dragHandle" alt="Drag"
+                      data-i18n-title="tags.dragReorder" title="Drag to reorder"
                       style="opacity: 0.9; filter: ${iconFilter()}"
                     >
                   `
@@ -1088,11 +1102,12 @@
                     dragFromIndex = null;
                   });
 
-                  const label = createEl('span', { innerHTML: `${tag} (${n})` });
+                  const label = createEl('span');
+                  label.textContent = `${tag} (${n})`;
                   const removeBtn = createEl('button', { innerHTML: '×', styles: { marginLeft: '6px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', lineHeight: '1' } });
                   removeBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    if (!confirm(`Remove tag "${tag}" from all prompts?`)) return;
+                    if (!confirm(t('tags.removeConfirm', { tag }))) return;
                     try {
                       const prompts = await window.PromptStorageManager.getPrompts();
                       const updated = prompts.map(p => {
@@ -1142,7 +1157,7 @@
             color: '#3674B5',
             flexShrink: '0'
           };
-          const createCommunityLink = ({ label, href, svgPath }) => {
+          const createCommunityLink = ({ labelKey, href, svgPath }) => {
             const link = createEl('a', {
               attributes: { href, target: '_blank', rel: 'noopener noreferrer' },
               styles: { ...linkTileStyles }
@@ -1151,25 +1166,25 @@
               styles: { ...iconWrapStyles },
               innerHTML: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="${svgPath}"/></svg>`
             });
-            const text = createEl('span', { innerHTML: label });
+            const text = createEl('span', { attributes: { 'data-i18n': labelKey }, textContent: t(labelKey) });
             link.append(iconWrap, text);
             return link;
           };
-          const communityTitle = createEl('div', { styles: { fontWeight: 'bold', fontSize: '13px', marginTop: '10px', opacity: 0.85 }, innerHTML: 'Support & Links' });
+          const communityTitle = createEl('div', { attributes: { 'data-i18n': 'support.title' }, styles: { fontWeight: 'bold', fontSize: '13px', marginTop: '10px', opacity: 0.85 }, textContent: t('support.title') });
           const communityLinks = createEl('div', { styles: { display: 'flex', flexDirection: 'column', gap: '6px' } });
           communityLinks.append(
             createCommunityLink({
-              label: 'Visit the GitHub Repository',
+              labelKey: 'support.github',
               href: 'https://github.com/jonathanbertholet/promptmanager',
               svgPath: 'M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.49.5.09.68-.22.68-.48 0-.24-.01-.87-.01-1.7-2.78.62-3.37-1.37-3.37-1.37-.45-1.16-1.11-1.47-1.11-1.47-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.89 1.52 2.34 1.08 2.91.83.09-.64.35-1.08.63-1.33-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05A9.2 9.2 0 0 1 12 6.84c.85.004 1.71.12 2.51.34 1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.07.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.8 0 .27.18.58.69.48A10.01 10.01 0 0 0 22 12c0-5.52-4.48-10-10-10z'
             }),
             createCommunityLink({
-              label: 'Leave a Review',
+              labelKey: 'support.review',
               href: 'https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain',
               svgPath: 'M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.62L12 2 9.19 8.62 2 9.24l5.46 4.73L5.82 21 12 17.27z'
             }),
             createCommunityLink({
-              label: 'Buy me a Coffee',
+              labelKey: 'support.coffee',
               href: 'https://buymeacoffee.com/jonathanbertholet',
               svgPath: 'M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4v-2z'
             })
@@ -1206,8 +1221,8 @@
                 src="${chrome.runtime.getURL('icons/drag_indicator.svg')}" 
                 width="16" 
                 height="16" 
-                alt="Drag handle" 
-                title="Drag to reorder"
+                data-i18n-alt="tags.dragHandle" alt="Drag handle"
+                data-i18n-title="tags.dragReorder" title="Drag to reorder"
                 style="display: block; opacity: 0.9; filter: ${iconFilter()}"
               >
             `,
@@ -1229,7 +1244,7 @@
             item.dataset.tagsList = JSON.stringify(Array.isArray(p.tags) ? p.tags.map(t => String(t).toLowerCase()) : []);
             const actions = createEl('div', { styles: { display: 'flex', gap: '4px' } });
             const editIcon = Elements.createIconButton('edit', () => { window.PromptUIManager.showEditForm(p); });
-            const deleteIcon = Elements.createIconButton('delete', () => { if (confirm(`Delete "${p.title}"?`)) window.PromptUIManager.deletePrompt(p.uuid); });
+            const deleteIcon = Elements.createIconButton('delete', () => { if (confirm(t('prompt.deleteConfirmNamed', { title: p.title }))) window.PromptUIManager.deletePrompt(p.uuid); });
             actions.append(editIcon, deleteIcon);
             item.append(dragHandle, info, actions);
             promptsContainer.appendChild(item);

@@ -1,0 +1,382 @@
+<style>
+  .opm-changelog ul {
+    list-style: none;
+    margin: 0;
+    padding-left: 0;
+  }
+
+  .opm-changelog ul li {
+    position: relative;
+    padding-left: 20px;
+    font-size: 14px;
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+
+  .opm-changelog ul li::before {
+    content: "•";
+    color: #3674B5;
+    position: absolute;
+    left: 5px;
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .opm-changelog ul ul {
+    padding-left: 10px;
+  }
+</style>
+
+<div class="opm-changelog" style="display: flex; flex-direction: column; gap: 16px;">
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">未发布</div>
+    <ul>
+      <li>修复 Perplexity 将同一条提示词重复插入三次的问题。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 3.0.5</div>
+    <ul>
+      <li>关闭追加模式时，从侧边栏再次插入同一条提示词不再误报错误。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 3.0.4</div>
+    <ul>
+      <li>已知 AI 助手找不到聊天输入框时会显示提示；若网站界面发生变化，还会提供“选择输入框”按钮。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 3.0.3</div>
+    <ul>
+      <li>首次安装后，可直接向安装前已经打开的标签页插入提示词，无需手动刷新。</li>
+      <li>多行提示词在 ChatGPT 中会保留换行。</li>
+      <li>侧边栏插入更加可靠；右键点击已保存提示词可直接插入当前页面。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 3.0.2</div>
+    <ul>
+      <li>标签统一以小写且唯一的形式保存，不再因大小写不同而拆成多个筛选项。</li>
+      <li>从未修改过标签设置时，备份导出也会正确保留标签；导入支持已解析的 v2 对象。</li>
+      <li>页面内界面会在观察器挂载前完成加载；切换视图时会清理滚动条计时器。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 3.0.1</div>
+    <ul>
+      <li>社区网站上的提示词导入不再依赖静态内容脚本，因此已有安装不会在更新后被 Chrome 禁用。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 3.0</div>
+    <ul>
+      <li>可从侧边栏<strong>分享到 Open Prompt Database</strong>，包括你从社区导入后修改的副本。</li>
+      <li>在已启用的网站上点击侧边栏提示词即可插入聊天输入框；带变量的提示词会在侧边栏填写变量，未启用的网站可手动选择输入框。</li>
+      <li>侧边栏打开时隐藏页面内启动器，并记住每个网站上最近一次成功使用的聊天输入框。</li>
+      <li>新增首次使用引导：选择启动方式，再点击 AI 助手授予访问权限、打开网站并打开侧边栏。</li>
+      <li>修复 ChatGPT 和 Perplexity 中提示词重复插入的问题。</li>
+      <li>改进分享及用户名检查错误提示；Chrome 商店版和解压安装版都可从社区网站导入提示词。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.9.1</div>
+    <ul>
+      <li><strong>分享到 Open Prompt Database</strong>：可用你的发布用户名从侧边栏发布提示词（标题、正文、标签），仍可从社区网站一键导入提示词。</li>
+      <li>Open Prompt Database 设置中新增发布用户名及发布开关。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.9</div>
+    <ul>
+      <li><strong>Open Prompt Database 导入</strong>：可通过网站上的“添加到 Open Prompt Manager”把社区提示词加入本地库；稳定的 <code>opd:</code> ID 可保证社区内容更新后再次导入时更新同一条提示词。</li>
+      <li>增加重复检测：若提示词已在本地库中，网站会显示“已在库中”，不会再次添加副本。</li>
+      <li>设置中加入社区提示词库入口；Chrome 商店扩展可从社区网站一键导入，更新时无需新增社区网站权限。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.8</div>
+    <ul>
+      <li>统一设置页面：启动方式、偏好、标签管理、导入导出、权限管理和自定义打开快捷键集中到同一处。</li>
+      <li>页面内提示词面板新增自定义键盘快捷键录制。</li>
+      <li>完整 v2 备份导出（提示词、文件夹、标签顺序），并改进导入合并。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.7</div>
+    <ul>
+      <li>侧边栏加入搜索和标签筛选，并与页面内提示词面板同步。</li>
+      <li>侧边栏的新建/编辑表单加入带建议的标签输入。</li>
+      <li>在列表、新建、变量和编辑视图之间切换时增加平滑的面板尺寸动画。</li>
+      <li>独立标签页：增加关闭按钮、优化布局并提高标签页关闭可靠性。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.6.0</div>
+    <ul>
+      <li>支持自定义网站：可在侧边栏“AI 助手”下的“+ 自定义网站”中选择任意网站的聊天输入框。</li>
+      <li>安装时新增启动方式选择：悬浮按钮（默认）或右下角热区。</li>
+      <li>调整侧边栏布局：AI 助手区域固定在底部链接上方。</li>
+      <li>优化 AI 助手页面性能，包括输入框检测缓存和更轻量的 DOM 观察器。</li>
+      <li>可靠性修复：快捷键可正确打开面板，撤销权限后状态保持同步，SPA 页面导航后可恢复注入。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.5.6</div>
+    <ul>
+      <li>可通过右键菜单将选中的文字保存为提示词。</li>
+      <li>可直接从侧边栏管理权限。</li>
+      <li>优化整体界面样式。</li>
+      <li>改进提示词整理和管理体验。</li>
+      <li>新增信息横幅。</li>
+      <li>重构 LLM 处理逻辑并修复 Grok 支持。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.5.0</div>
+    <ul>
+      <li>支持为提示词添加标签并进行整理。</li>
+      <li>可在设置中启用标签；支持拖拽排序，也可在标签管理中删除标签。</li>
+      <li>修复大量问题并重构代码。</li>
+      <li>感谢 Robert 报告问题，也感谢 Abdallah 快速修复。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.4.0</div>
+    <ul>
+      <li>改进拖放功能。</li>
+      <li>缩短扩展加载时间。</li>
+      <li>新增强制深色模式开关。</li>
+      <li>样式优化。</li>
+      <li>修复 GitHub Copilot 支持中的小问题。</li>
+      <li>将导入和导出合并到设置中。</li>
+      <li>改进首次使用引导。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.3.1</div>
+    <ul>
+      <li>新增 OpenAI Playground、OpenRouter、Mistral Le Chat、Kimi、GitHub Copilot 支持。</li>
+      <li>新增设置开关：关闭输入区覆盖后，提示词会追加到现有文字之后。</li>
+      <li>更新侧边栏和弹出面板样式。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.2.1 - 热修复</div>
+    <ul>
+      <li>开始为标签和文件夹支持搭建基础。</li>
+      <li>修复若干问题。</li>
+      <li>提示词拖拽排序恢复正常。</li>
+      <li>侧边栏加入临时信息横幅。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.2</div>
+    <ul>
+      <li>进一步打磨细节并修复一些问题。</li>
+      <li>新增右键菜单，可将提示词复制到剪贴板。</li>
+      <li>改进首次使用引导和样式，并修复若干问题。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 2.0.0</div>
+    <ul>
+      <li>新增 Perplexity AI、LMArena 和 Google AI Studio 支持。</li>
+      <li>扩展图标现在打开侧边栏而不是弹窗，并支持响应式布局。</li>
+      <li>新增权限管理器和更清晰的首次使用说明。</li>
+      <li>完善权限基础，为后续快速增加更多提供商和功能做好准备。</li>
+      <li>可从侧边栏将提示词复制到剪贴板，对不支持的网站尤其方便。</li>
+      <li>更新部分界面，后续还会继续优化。</li>
+      <li>已知 Google AI Studio 中图标显示存在一个小问题。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.9.5</div>
+    <ul>
+      <li>新增右下角热区模式：将鼠标移到屏幕右下角即可打开提示词管理器。</li>
+      <li>新增设置视图，用于管理扩展偏好。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.9.3</div>
+    <ul>
+      <li>新增 abacus.ai ChatLLM 支持。</li>
+      <li>将内联 SVG 图标替换为 Material UI 图标。</li>
+      <li>修复启动问题，确保初始化时正确加载已保存提示词。</li>
+      <li>修复网站弹出视图中的导入/导出图标问题。</li>
+      <li>通过更新图标和增加说明性提示，改进用户体验（UX）、界面与导航清晰度。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.9.2</div>
+    <ul>
+      <li>代码重构。</li>
+      <li>修复首次使用流程。</li>
+      <li>修复多个问题。</li>
+      <li>统一键盘导航代码。</li>
+      <li>调整界面间距。</li>
+      <li>开始开发设置视图。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.9</div>
+    <ul>
+      <li>新增提示词变量，可用 #name# 这类变量在使用时快速填入动态值。</li>
+      <li>为首次使用者增加“悬停即可开始”的引导提示。</li>
+      <li>可在编辑菜单中调整提示词顺序。</li>
+      <li>新增更新日志视图。</li>
+      <li>新增 Grok 和 Copilot 支持。</li>
+      <li>重做完整界面主题和动画，包括深色模式。</li>
+      <li>精简界面文案。</li>
+      <li>改进信息菜单中的说明。</li>
+      <li>加入 GitHub 链接。</li>
+      <li>名称由 Simple Prompt Manager 更改为 Open Prompt Manager。</li>
+      <li>几乎完全重写代码。</li>
+      <li>修复多项问题以提高可靠性。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.7</div>
+    <ul>
+      <li>重构并大幅优化代码。</li>
+      <li>提示词管理：缺少提示词时，会在提示词按钮菜单中显示说明。</li>
+      <li>没有提示词时默认进入新建提示词界面。</li>
+      <li>修复不同视图切换时界面不一致的问题。</li>
+      <li>Gemini：支持新的输入区域。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.6</div>
+    <ul>
+      <li>更新存储管理器，现在可处理更多提示词。</li>
+      <li>修复 Windows / Linux 快捷键，现为 Ctrl+M。</li>
+      <li>新增 DeepSeek 支持。</li>
+      <li>新增旧版提示词系统检查和说明，以应对迁移异常。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.5.1</div>
+    <ul>
+      <li>问题修复，特别感谢 GitHub 用户 Hexodus。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.5</div>
+    <ul>
+      <li><strong>功能：</strong></li>
+      <li>在提示词列表中新增底部菜单。</li>
+      <li>新增打开/关闭提示词管理器快捷键：Command + Shift + P / Ctrl + Shift + P。</li>
+      <li>可直接从按钮导入和导出提示词。</li>
+      <li>可直接从按钮保存新提示词。</li>
+      <li>可直接从按钮编辑或删除提示词。</li>
+      <li><strong>样式：</strong></li>
+      <li>为选中的提示词列表项增加悬停效果。</li>
+      <li>全面优化各类按钮和菜单样式。</li>
+      <li>在按钮和弹窗的最后一个标签页中显示键盘导航快捷键。</li>
+      <li>显著改进弹窗深色模式。</li>
+      <li>提示词按钮界面加入深色模式。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.4</div>
+    <ul>
+      <li><strong>功能：</strong></li>
+      <li>可直接从提示词按钮新建提示词。</li>
+      <li>可在提示词列表弹窗中搜索标题和正文。</li>
+      <li>导入/导出支持 UUID，可智能合并提示词。</li>
+      <li>悬停按钮即可打开列表，也支持点击覆盖。</li>
+      <li>新增 Gemini 支持。</li>
+      <li>支持拖动按钮位置。</li>
+      <li><strong>样式：</strong></li>
+      <li>新 Logo、新标题。</li>
+      <li>重新设计菜单栏弹窗。</li>
+      <li>精简菜单栏弹窗，悬停即可编辑或删除。</li>
+      <li>调整元素间距和底部链接。</li>
+      <li>更新提示词按钮图标并加入动画。</li>
+      <li>改进提示词按钮定位。</li>
+      <li>提示词列表、弹窗和按钮界面支持滚动条。</li>
+      <li><strong>键盘导航：</strong></li>
+      <li>显示列表时自动选中搜索框：直接输入即可筛选，按 Enter 插入。</li>
+      <li>可用方向键浏览提示词搜索结果。</li>
+      <li>按 Esc 关闭提示词列表。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.3</div>
+    <ul>
+      <li>提示词插入器由输入框下拉菜单改为悬浮按钮。</li>
+      <li>扩展兼容更多服务：Claude、NotebookLM、Poe，并继续开放更多工具适配。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.2.2</div>
+    <ul>
+      <li>改进布局。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.2.1</div>
+    <ul>
+      <li>重构代码，方便后续开发。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.2</div>
+    <ul>
+      <li>导入/导出功能迁移为 JSON 格式。</li>
+      <li>样式优化。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.1.3</div>
+    <ul>
+      <li>修复 chatgpt.com 加载错误。</li>
+      <li>更新深色模式。</li>
+      <li>更新样式。</li>
+      <li>移除多余链接。</li>
+    </ul>
+  </div>
+
+  <div>
+    <div style="font-weight: bold; margin-bottom: 4px;">版本 1.0</div>
+    <ul>
+      <li>新增深色模式。</li>
+      <li>改进整体外观。</li>
+      <li>提升整体可靠性。</li>
+      <li>加入扩展图标。</li>
+      <li>首次发布。</li>
+    </ul>
+  </div>
+</div>

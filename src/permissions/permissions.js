@@ -9,6 +9,8 @@ import {
 } from '../opd/opdCatalogAccess.js';
 import { getPublishSettings } from '../opd/opdPublishToken.js';
 
+const t = (key, params) => window.OPMI18n.t(key, params);
+
 /** COMMENT: ?reset=1 clears onboarding state so the in-page tooltip shows again (dev only). */
 async function maybeResetOnboardingFromQuery() {
   const params = new URLSearchParams(window.location.search);
@@ -19,7 +21,8 @@ async function maybeResetOnboardingFromQuery() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+  await window.OPMI18n.ready;
   maybeResetOnboardingFromQuery().catch(console.error);
   const DISPLAY_MODE_KEY = 'displayMode';
   const DEFAULT_DISPLAY_MODE = 'hotCorner';
@@ -181,7 +184,7 @@ document.addEventListener('DOMContentLoaded', function () {
               return;
             }
             if (response?.error === 'permission_denied') {
-              alert(`Permission denied for ${providerKey}. Allow site access in the Chrome prompt to continue.`);
+              alert(t('onboarding.permissionDenied', { provider: providerKey }));
             }
             resolve(response || { ok: false, error: 'no_response' });
           },
@@ -201,12 +204,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
       chrome.permissions.request({ origins }, (granted) => {
         if (chrome.runtime.lastError) {
-          alert(`Could not request permission for ${providerKey}: ${chrome.runtime.lastError.message}`);
+          alert(t('onboarding.permissionRequestFailed', { provider: providerKey, error: chrome.runtime.lastError.message }));
           resolve({ ok: false, error: chrome.runtime.lastError.message });
           return;
         }
         if (!granted) {
-          alert(`Permission denied for ${providerKey}. Allow site access in the Chrome prompt to continue.`);
+          alert(t('onboarding.permissionDenied', { provider: providerKey }));
           resolve({ ok: false, error: 'permission_denied' });
           return;
         }
@@ -225,18 +228,21 @@ document.addEventListener('DOMContentLoaded', function () {
       const iconUrl = providerInfo.iconUrl;
       const isGranted = providerInfo.hasPermission === 'Yes';
 
-      providerShortcutsContainer.insertAdjacentHTML(
-        'beforeend',
-        `<button type="button" id="perm-${key}" class="custom-button custom-provider-shortcut${isGranted ? ' is-granted' : ''}"
-                data-provider="${key}">
-          <img src="${iconUrl}" alt="${key} icon" width="32" height="32" class="custom-rounded-circle">
-          <span class="custom-mb-0">${key}</span>
-        </button>`,
-      );
-
-      const element = Array.from(providerShortcutsContainer.querySelectorAll('[data-provider]'))
-        .find((node) => node.dataset.provider === key);
-      if (!element) continue;
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.id = `perm-${key}`;
+      element.className = `custom-button custom-provider-shortcut${isGranted ? ' is-granted' : ''}`;
+      element.dataset.provider = key;
+      const icon = document.createElement('img');
+      icon.src = iconUrl;
+      icon.width = 32; icon.height = 32;
+      icon.className = 'custom-rounded-circle';
+      window.OPMI18n.bind(icon, 'provider.icon', { name: key }, 'alt');
+      const label = document.createElement('span');
+      label.className = 'custom-mb-0';
+      label.textContent = key;
+      element.append(icon, label);
+      providerShortcutsContainer.appendChild(element);
 
       const iconEl = element.querySelector('img');
       if (iconEl) attachProviderIconFallback(iconEl, providerInfo.url);
@@ -261,12 +267,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+
+
   chrome.storage.local.get(['aiProvidersMap'], function (result) {
     if (result.aiProvidersMap) {
       populateProviders(result.aiProvidersMap);
       return;
     }
-    providerShortcutsContainer.innerHTML = '<p>No provider data found in storage.</p>';
+    providerShortcutsContainer.replaceChildren(window.OPMI18n.bind(document.createElement('p'), 'onboarding.noProviderData'));
   });
 
   // COMMENT: Remove all permissions handler — revokes all optional origins and resets providers map
@@ -302,7 +310,7 @@ document.addEventListener('DOMContentLoaded', function () {
         chrome.permissions.remove({ origins: allPatterns }, () => {
           if (chrome.runtime.lastError) {
             console.error('Failed to remove permissions:', chrome.runtime.lastError);
-            alert('Could not remove all permissions. Try again from Settings.');
+            alert(t('onboarding.removePermissionsFailed'));
             return;
           }
           persistRevokedState();
