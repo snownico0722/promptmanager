@@ -37,4 +37,8 @@ coverage/
 *.temp
 
 # Open Prompt Database website (private repo — clone separately)
-opd/ 
+opd/
+
+# Localization test output
+i18n-browser-results.json
+i18n-screenshots/
