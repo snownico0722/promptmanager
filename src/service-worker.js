@@ -1,3 +1,4 @@
+import './i18n.js';
 import { getProviderList } from './llm_providers.js';
 import { OPD_CATALOG_URL } from './opd/opdConstants.js';
 import {
@@ -31,6 +32,7 @@ import {
 // COMMENT: Single source of truth for dynamically injected content-script bundles
 const CONTENT_SCRIPT_FILES = [
   'content.boot.js',
+  'i18n.js',
   'utils/promptInsertUtils.js',
   'handlers/inputBoxHandler.js',
   'content.styles.js',
@@ -882,44 +884,48 @@ async function getAllPrompts() {
   return await getPrompts();
 }
 
-// Create the context menu
-async function createPromptContextMenu() {
-  // Remove any existing menu to avoid duplicates
-  chrome.contextMenus.removeAll(() => {
-    // Create the parent menu
-    chrome.contextMenus.create({
-      id: 'open-prompt-manager',
-      title: 'Open Prompt Manager',
-      contexts: ['all']
-    });
-    // First child: "Save as prompt" – only shown when there is a text selection
-    // COMMENT: This enables the flow "select text → right-click → Open Prompt Manager → Save as prompt"
-    chrome.contextMenus.create({
-      id: 'save-as-prompt',
-      parentId: 'open-prompt-manager',
-      title: 'Save new prompt',
-      contexts: ['selection']
-    });
-    // COMMENT: Visual separator between "Save as prompt" and the list of existing prompts.
-    // Only show when there is a selection, mirroring the visibility of the save item.
-    chrome.contextMenus.create({
-      id: 'save-separator',
-      parentId: 'open-prompt-manager',
-      type: 'separator',
-      contexts: ['selection']
-    });
-    // Add a menu item for each prompt
-    getAllPrompts().then(prompts => {
-      prompts.forEach((prompt) => {
-        chrome.contextMenus.create({
-          id: 'prompt-' + prompt.uuid,
-          parentId: 'open-prompt-manager',
-          title: prompt.title || 'Untitled prompt',
-          contexts: ['all']
-        });
-      });
+// Menu creation has one owner; language/data changes may overlap while storage is read.
+let menuPending = false;
+let menuTask = null;
+function menuCall(method, ...args) {
+  return new Promise((resolve, reject) => {
+    chrome.contextMenus[method](...args, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
     });
   });
+}
+function createPromptContextMenu() {
+  menuPending = true;
+  if (menuTask) return menuTask;
+  menuTask = (async () => {
+    await globalThis.OPMI18n.ready;
+    while (menuPending) {
+      menuPending = false;
+      const prompts = await getAllPrompts();
+      const t = globalThis.OPMI18n.t;
+      await menuCall('removeAll');
+      await menuCall('create', { id: 'open-prompt-manager', title: 'Open Prompt Manager', contexts: ['all'] });
+      await menuCall('create', {
+        id: 'save-as-prompt', parentId: 'open-prompt-manager', title: t('contextMenu.savePrompt'), contexts: ['selection'],
+      });
+      await menuCall('create', {
+        id: 'save-separator', parentId: 'open-prompt-manager', type: 'separator', contexts: ['selection'],
+      });
+      // Drain every callback even if one entry fails, before allowing another rebuild.
+      const results = await Promise.allSettled(prompts.map(prompt => menuCall('create', {
+        id: 'prompt-' + prompt.uuid, parentId: 'open-prompt-manager',
+        title: prompt.title || t('prompt.untitled'), contexts: ['all'],
+      })));
+      for (const result of results) if (result.status === 'rejected') console.warn('[OPM] Menu entry:', result.reason);
+      await chrome.action.setTitle({ title: t('contextMenu.openSidebar') });
+    }
+  })().catch(error => console.error('[OPM] Menu rebuild failed:', error)).finally(() => {
+    menuTask = null;
+    if (menuPending) createPromptContextMenu();
+  });
+  return menuTask;
 }
 
 // On install or update, create the context menu
@@ -943,6 +949,11 @@ chrome.runtime.onStartup.addListener(() => {
   })();
 });
 
+globalThis.OPMI18n.subscribe(createPromptContextMenu);
+globalThis.OPMI18n.ready.then(() => chrome.action.setTitle({
+  title: globalThis.OPMI18n.t('contextMenu.openSidebar'),
+})).catch(error => console.warn('[OPM] Toolbar title:', error));
+
 // COMMENT: Debounce menu rebuilds when prompts change in bursts (import / reorder)
 let contextMenuRebuildTimer = null;
 onPromptsChanged(() => {
@@ -965,19 +976,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
       }
       const selected = info.selectionText || '';
+      await globalThis.OPMI18n.ready;
       // Ask for a title using the page's built-in blocking prompt
       const [{ result: titleValue }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: () => {
-          return window.prompt('Enter a title for your prompt', '');
-        }
+        func: message => window.prompt(message, ''),
+        args: [globalThis.OPMI18n.t('prompt.selectionTitlePrompt')]
       });
-      const title = (titleValue || '').trim();
+      if (titleValue === null || titleValue === undefined) return;
+      const title = String(titleValue).trim();
       if (!title) {
         // Show the requested error message if no title provided
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: () => { window.alert('Please add a title to your prompt.'); }
+          func: message => window.alert(message),
+          args: [globalThis.OPMI18n.t('prompt.selectionTitleRequired')]
         });
         return;
       }

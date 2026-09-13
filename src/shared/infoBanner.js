@@ -14,7 +14,7 @@ export const OPM_INFO_BANNER = {
 
 /** @returns {string} HTML snippet for the banner body (Learn more → OPD changelog). */
 export function buildInfoBannerHtml() {
-  return `<span><strong>New —</strong> Share &amp; Import Community Prompts <a href="${OPD_CHANGELOG_URL}" target="_blank" rel="noopener noreferrer" class="opm-info-banner-link">Learn more</a></span>`;
+  return `<span><strong data-i18n="banner.communityNew">New —</strong> <span data-i18n="banner.communityAction">Share &amp; Import Community Prompts</span> <a href="${OPD_CHANGELOG_URL}" target="_blank" rel="noopener noreferrer" class="opm-info-banner-link" data-i18n="banner.learnMore">Learn more</a></span>`;
 }
 
 export { OPD_CHANGELOG_URL };
@@ -38,7 +38,7 @@ export async function mountSidepanelInfoBanner(hostEl) {
   banner.className = 'sidebar-info-banner';
   banner.innerHTML = `
     <div class="sidebar-info-banner-body">${buildInfoBannerHtml()}</div>
-    <button type="button" class="sidebar-info-banner-close" aria-label="Dismiss update banner">&times;</button>
+    <button type="button" class="sidebar-info-banner-close" data-i18n-aria-label="banner.dismiss" aria-label="Dismiss update banner">&times;</button>
   `;
 
   const closeBtn = banner.querySelector('.sidebar-info-banner-close');
@@ -55,5 +55,6 @@ export async function mountSidepanelInfoBanner(hostEl) {
   });
 
   hostEl.appendChild(banner);
+  globalThis.OPMI18n?.apply?.(banner);
   hostEl.hidden = false;
 }

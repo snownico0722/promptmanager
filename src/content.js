@@ -123,6 +123,7 @@ const SCROLLBAR_PERSIST_MS = 900;
 // Hot corner indicator sizes (px)
 const HOT_CORNER_INDICATOR_SMALL_PX = 20;
 const HOT_CORNER_INDICATOR_LARGE_PX = 30;
+const t = (key, params, fallback) => window.OPMI18n.t(key, params, fallback);
 
 /* ---------------------------------------------------------------------------
  * [02] Types (JSDoc typedefs)
@@ -168,16 +169,19 @@ const HOT_CORNER_INDICATOR_LARGE_PX = 30;
  * @param {Object<string,string>} [options.styles]
  * @param {Object<string,string>} [options.attributes]
  * @param {string} [options.innerHTML]
+ * @param {string} [options.textContent]
  * @param {Object<string,Function>} [options.eventListeners]
  * @returns {HTMLElement}
  */
-const createEl = (tag, { id, className, styles, attributes, innerHTML, eventListeners } = {}) => {
+const createEl = (tag, { id, className, styles, attributes, innerHTML, textContent, eventListeners } = {}) => {
   const el = document.createElement(tag);
   if (id) el.id = id;
   if (className) el.className = className;
   if (styles) Object.assign(el.style, styles);
   if (attributes) Object.entries(attributes).forEach(([k, v]) => el.setAttribute(k, v));
   if (innerHTML) el.innerHTML = innerHTML;
+  if (textContent !== undefined) el.textContent = textContent;
+  window.OPMI18n.apply(el);
   if (eventListeners) Object.entries(eventListeners).forEach(([evt, handler]) => el.addEventListener(evt, handler));
   return el;
 };
@@ -343,15 +347,16 @@ const PanelRouter = (() => {
    * @param {{ titleText: string, contentId: string, sourcePath: string }} options
    * @returns {HTMLElement}
    */
-  const createInfoView = ({ titleText, contentId, sourcePath }) => {
+  const createInfoView = ({ titleKey, titleText, contentId, sourcePath }) => {
     const dark = isDarkMode();
     const container = createEl('div', {
       className: `opm-form-container opm-${getMode()}`,
       styles: { padding: '0', display: 'flex', flexDirection: 'column', gap: '6px' }
     });
     const title = createEl('div', {
+      attributes: titleKey ? { 'data-i18n': titleKey } : undefined,
       styles: { fontWeight: 'bold', fontSize: '16px', marginBottom: '6px' },
-      innerHTML: titleText
+      textContent: titleKey ? t(titleKey) : titleText
     });
     const info = createEl('div', {
       id: contentId,
@@ -364,10 +369,37 @@ const PanelRouter = (() => {
       }
     });
     container.append(title, info);
-    fetch(chrome.runtime.getURL(sourcePath))
-      .then(r => r.text())
-      .then(html => { info.innerHTML = html; })
-      .catch(err => console.error(`[PromptManager] Failed to load ${sourcePath}:`, err));
+    let generation = 0;
+    const loadInfo = async () => {
+      const ticket = ++generation;
+      const path = window.OPMI18n.localizedResource(sourcePath);
+      info.textContent = t('changelog.loading');
+      const read = async resource => {
+        const response = await fetch(chrome.runtime.getURL(resource));
+        if (!response.ok) throw new Error(`Changelog HTTP ${response.status}`);
+        return response.text();
+      };
+      try {
+        let html, fallback = false;
+        try { html = await read(path); }
+        catch (error) {
+          if (path === sourcePath) throw error;
+          html = await read(sourcePath);
+          fallback = true;
+        }
+        if (ticket !== generation) return;
+        info.innerHTML = html; // Packaged extension HTML only; never translation parameters.
+        info.lang = fallback ? 'en' : window.OPMI18n.getLanguage();
+        if (fallback) info.prepend(createEl('p', { textContent: t('changelog.englishFallback') }));
+      } catch (error) {
+        if (ticket !== generation) return;
+        info.textContent = t('changelog.error');
+        info.appendChild(createEl('button', { attributes: { type: 'button' }, textContent: t('common.retry'), eventListeners: { click: loadInfo } }));
+        console.warn('[PromptManager] Changelog unavailable:', error);
+      }
+    };
+    info.__opmReloadLocalized = loadInfo;
+    loadInfo();
     ScrollVisibilityManager.observe(info);
     return container;
   };
@@ -438,6 +470,7 @@ const PanelRouter = (() => {
     },
     [PanelView.CHANGELOG]: {
       builder: () => createInfoView({
+        titleKey: 'changelog.title',
         titleText: 'Changelog',
         contentId: SELECTORS.CHANGELOG_CONTENT,
         sourcePath: 'changelog.html'
@@ -534,6 +567,7 @@ const PanelRouter = (() => {
       PromptUIManager.replacePanelMainContent(node);
       applyViewChrome(definition);
       PromptUIManager.showPromptList(listEl);
+      window.OPMI18n.apply(listEl);
     };
 
     if (shouldAnimate) {
@@ -550,6 +584,10 @@ const PanelRouter = (() => {
   return { mount, reset };
 })();
 window.PanelRouter = PanelRouter;
+window.OPMI18n.subscribe(() => {
+  const changelog = document.getElementById(SELECTORS.CHANGELOG_CONTENT);
+  changelog?.__opmReloadLocalized?.();
+});
 
 /* ---------------------------------------------------------------------------
  * [05] Centralized outside-click closer
@@ -843,10 +881,6 @@ class PromptUIManager {
     active: true,
     // COMMENT: Bump id when banner copy changes so users who dismissed an older banner see the update
     id: 'info-banner-v3',
-    html: `<span>
-      <strong>New:</strong> Use Open Prompt Manager on ANY site. Enjoy the extension? </br>
-      <a href="https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain" target="_blank" rel="noopener noreferrer" style="color:#3674B5;text-decoration:underline;">Leave a review</a>!
-    </span>`
   };
 
   static state = {
@@ -872,6 +906,7 @@ class PromptUIManager {
       root = createEl('div', { id: SELECTORS.ROOT });
       document.body.appendChild(root);
       root.classList.add(`opm-${getMode()}`);
+      window.OPMI18n.registerRoot(root);
     }
     PromptUIManager.state.root = root;
     return root;
@@ -1233,7 +1268,7 @@ class PromptUIManager {
         boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
         textAlign: 'center', whiteSpace: 'nowrap', transition: 'opacity 0.3s ease'
       },
-      innerHTML: 'Hover to Start'
+      textContent: ''
     });
     const triangle = createEl('div', {
       styles: {
@@ -1243,7 +1278,7 @@ class PromptUIManager {
         borderTop: `5px solid ${THEME_COLORS.primary}dd`
       }
     });
-    popup.appendChild(triangle);
+    popup.append(createEl('span', { attributes: { 'data-i18n': 'onboarding.hoverStartShort' }, textContent: t('onboarding.hoverStartShort') }), triangle);
     container.appendChild(popup);
     setTimeout(() => {
       if (popup && popup.parentNode) {
@@ -1462,12 +1497,23 @@ class PromptUIManager {
               flex: '0 0 auto',
               lineHeight: '1.4'
             },
-            innerHTML: `
-              <div style="flex: 1;">${PromptUIManager.BANNER_CONFIG.html}</div>
-            `
           });
+          const bannerBody = createEl('div', { styles: { flex: '1' } });
+          const bannerMessage = createEl('span');
+          const bannerStrong = createEl('strong', { attributes: { 'data-i18n': 'banner.newLabel' }, textContent: t('banner.newLabel') });
+          const bannerText = createEl('span', { attributes: { 'data-i18n': 'banner.newSiteText' }, textContent: t('banner.newSiteText') });
+          const bannerBreak = document.createElement('br');
+          const bannerReview = createEl('a', {
+            attributes: { 'data-i18n': 'banner.leaveReview', href: 'https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain', target: '_blank', rel: 'noopener noreferrer' },
+            styles: { color: '#3674B5', textDecoration: 'underline' },
+            textContent: t('banner.leaveReview')
+          });
+          bannerMessage.append(bannerStrong, document.createTextNode(' '), bannerText, bannerBreak, bannerReview, document.createTextNode('!'));
+          bannerBody.appendChild(bannerMessage);
+          banner.appendChild(bannerBody);
 
           const closeBtn = createEl('button', {
+            attributes: { 'data-i18n-aria-label': 'banner.dismiss', 'aria-label': t('banner.dismiss') },
             innerHTML: '×',
             styles: {
               background: 'transparent', border: 'none', cursor: 'pointer',
@@ -1688,8 +1734,8 @@ class PromptUIManager {
     ScrollVisibilityManager.observe(varContainer);
 
     const varValues = {};
-    const submitBtn = createEl('button', { innerHTML: 'Submit', className: `opm-button opm-${getMode()}` });
-    const backBtn = createEl('button', { innerHTML: 'Back', className: `opm-button opm-${getMode()}` });
+    const submitBtn = createEl('button', { attributes: { 'data-i18n': 'prompt.submitVariables' }, textContent: t('prompt.submitVariables'), className: `opm-button opm-${getMode()}` });
+    const backBtn = createEl('button', { attributes: { 'data-i18n': 'common.back' }, textContent: t('common.back'), className: `opm-button opm-${getMode()}` });
 
     variables.forEach(v => {
       const displayLabel = String(v).replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
@@ -1703,7 +1749,7 @@ class PromptUIManager {
         styles: { fontSize: '12px', fontWeight: '600', letterSpacing: '0.2px', opacity: '0.85', lineHeight: '1.2' }
       });
       const inputField = createEl('textarea', {
-        attributes: { rows: '2', placeholder: `${displayLabel} value` },
+        attributes: { rows: '2', 'data-i18n-placeholder': 'prompt.variableValue', 'data-i18n-param-name': displayLabel, placeholder: t('prompt.variableValue', { name: displayLabel }) },
         className: `opm-textarea-field opm-${getMode()}`,
         styles: {
           boxSizing: 'border-box',
@@ -1800,12 +1846,12 @@ class PromptUIManager {
     ScrollVisibilityManager.observe(fields);
 
     const titleIn = createEl('input', {
-      attributes: { placeholder: 'Prompt Title' },
+      attributes: { 'data-i18n-placeholder': 'prompt.title', placeholder: t('prompt.title') },
       className: `opm-input-field opm-${getMode()}`,
       styles: { borderRadius: '4px', flex: '0 0 auto' }
     });
     const contentArea = createEl('textarea', {
-      attributes: { placeholder: 'Write your prompt. Use hashtags for #variables#' },
+      attributes: { 'data-i18n-placeholder': 'prompt.contentPlaceholderShort', placeholder: t('prompt.contentPlaceholderShort'), 'data-i18n-title': 'prompt.variableSyntaxHelp', title: t('prompt.variableSyntaxHelp') },
       className: `opm-textarea-field opm-${getMode()}`,
       styles: { flex: '1 1 auto', minHeight: '120px', resize: 'vertical', boxSizing: 'border-box' }
     });
@@ -1836,19 +1882,19 @@ class PromptUIManager {
       }
     });
 
-    const backBtn = createEl('button', { innerHTML: 'Back', className: `opm-button opm-${getMode()}` });
+    const backBtn = createEl('button', { attributes: { 'data-i18n': 'common.back' }, textContent: t('common.back'), className: `opm-button opm-${getMode()}` });
     backBtn.addEventListener('click', () => {
       PanelRouter.mount(PromptUIManager.state.listMode === 'edit' ? PanelView.EDIT : PanelView.LIST);
     });
 
-    const saveBtn = createEl('button', { innerHTML: 'Save Changes', className: `opm-button opm-${getMode()}` });
+    const saveBtn = createEl('button', { attributes: { 'data-i18n': 'prompt.saveChanges' }, textContent: t('prompt.saveChanges'), className: `opm-button opm-${getMode()}` });
     saveBtn.addEventListener('click', async e => {
       e.stopPropagation();
-      const t = titleIn.value.trim();
-      const c = contentArea.value.trim();
-      if (!t || !c) { alert('Please fill in both title and content.'); return; }
+      const promptTitle = titleIn.value.trim();
+      const promptContent = contentArea.value.trim();
+      if (!promptTitle || !promptContent) { alert(t('prompt.validationTitleContent')); return; }
       const ps = await PromptStorageManager._ps();
-      const update = { title: t, content: c };
+      const update = { title: promptTitle, content: promptContent };
       if (tagInput) update.tags = tagInput.getTags();
       await ps.updatePrompt(prompt.uuid, update);
       PanelRouter.mount(PromptUIManager.state.listMode === 'edit' ? PanelView.EDIT : PanelView.LIST);
@@ -2439,7 +2485,9 @@ const PromptMediator = (() => {
     if (window.__OPM_INITIALIZED__ || state.initialized) return;
     window.__OPM_INITIALIZED__ = true;
     state.initialized = true;
-    
+
+    await window.OPMI18n.ready;
+
     // COMMENT: Load theme preference before UI injection
     try {
       window.isDarkModeForced = await PromptStorageManager.getForceDarkMode();
