@@ -1,88 +1,100 @@
 <!DOCTYPE html>
-<html>
+<html data-i18n-pending>
 <head>
-  <title>Settings</title>
+  <title data-i18n="settings.title">Settings</title>
   <!-- COMMENT: Reuse side panel styles for a consistent extension look -->
   <link rel="stylesheet" href="sidepanel/styles.css">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>html[data-i18n-pending] body { visibility: hidden; animation: opm-i18n-fallback 0s 4s forwards; } @keyframes opm-i18n-fallback { to { visibility: visible; } }</style>
+  <script src="i18n.js"></script>
 </head>
 <body class="settings-page">
   <div class="settings-page-shell">
   <div class="settings-page-scroll">
   <header class="subpage-header">
-    <a href="sidepanel/index.html" class="subpage-back" aria-label="Back to side panel" title="Back">
+    <a href="sidepanel/index.html" class="subpage-back" data-i18n-aria-label="sidepanel.backToSidePanel" aria-label="Back to side panel" data-i18n-title="common.back" title="Back">
       <svg class="footer-md-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
     </a>
-    <h2 class="subpage-title">Settings</h2>
+    <h2 class="subpage-title" data-i18n="settings.title">Settings</h2>
   </header>
 
   <section class="settings-section settings-section-first">
-    <h3 class="settings-heading">Keyboard shortcuts</h3>
-    <p class="pm-subtitle">Customize how you open the in-page prompt panel on assistant sites.</p>
+    <h3 class="settings-heading" data-i18n="settings.keyboardShortcuts">Keyboard shortcuts</h3>
+    <p class="pm-subtitle" data-i18n="settings.keyboardHelp">Customize how you open the in-page prompt panel on assistant sites.</p>
     <div class="settings-shortcut-row">
-      <label class="settings-field-label" for="open-shortcut-record">Open / close panel</label>
+      <label class="settings-field-label" for="open-shortcut-record" data-i18n="settings.openClosePanel">Open / close panel</label>
       <div class="settings-shortcut-controls">
-        <button type="button" class="main settings-shortcut-record" id="open-shortcut-record">Record shortcut</button>
+        <button type="button" class="main settings-shortcut-record" id="open-shortcut-record" data-i18n="settings.recordShortcut">Record shortcut</button>
         <span id="open-shortcut-display" class="settings-shortcut-display" aria-live="polite">⌘ + ⇧ + P</span>
       </div>
-      <p class="pm-subtitle settings-shortcut-hint">Click record, then press your preferred key combination.</p>
+      <p class="pm-subtitle settings-shortcut-hint" data-i18n="settings.recordHelp">Click record, then press your preferred key combination.</p>
     </div>
     <div id="navigation-shortcuts" class="shortcut-container">
       <p style="display: flex; align-items: center; margin: 8px 0;">
-        <span class="settings-kbd">Hover/Click</span>
-        <span>Open prompt list buttons</span>
+        <span class="settings-kbd" data-i18n="sidepanel.hoverClick">Hover/Click</span>
+        <span data-i18n="sidepanel.openPromptButtons">Open prompt list buttons</span>
       </p>
       <p style="display: flex; align-items: center; margin: 8px 0;">
         <span class="settings-kbd">↑↓</span>
-        <span>Navigate the prompt list</span>
+        <span data-i18n="sidepanel.navigatePromptList">Navigate the prompt list</span>
       </p>
       <p style="display: flex; align-items: center; margin: 8px 0;">
         <span class="settings-kbd">Enter</span>
-        <span>Select a prompt</span>
+        <span data-i18n="sidepanel.selectPrompt">Select a prompt</span>
       </p>
       <p style="display: flex; align-items: center; margin: 8px 0;">
         <span class="settings-kbd">Esc</span>
-        <span>Close the prompt manager</span>
+        <span data-i18n="sidepanel.closeManager">Close the prompt manager</span>
       </p>
     </div>
   </section>
 
   <section class="settings-section">
-    <h3 class="settings-heading">Launcher mode</h3>
-    <p class="pm-subtitle">Choose how prompts open on assistant pages. Sidebar or shortcut uses the Chrome side panel or your keyboard shortcut only.</p>
-    <div id="display-mode-section" class="settings-mode-options" role="radiogroup" aria-label="Launcher mode">
+    <h3 class="settings-heading" data-i18n="settings.launcherMode">Launcher mode</h3>
+    <p class="pm-subtitle" data-i18n="settings.launcherHelp">Choose how prompts open on assistant pages. Sidebar or shortcut uses the Chrome side panel or your keyboard shortcut only.</p>
+    <div id="display-mode-section" class="settings-mode-options" role="radiogroup" data-i18n-aria-label="settings.launcherMode" aria-label="Launcher mode">
       <label class="settings-mode-option">
         <input type="radio" name="displayMode" value="standard">
-        <span>Floating button</span>
+        <span data-i18n="settings.floatingButton">Floating button</span>
       </label>
       <label class="settings-mode-option">
         <input type="radio" name="displayMode" value="hotCorner">
-        <span>Hot corner</span>
+        <span data-i18n="settings.hotCorner">Hot corner</span>
       </label>
       <label class="settings-mode-option">
         <input type="radio" name="displayMode" value="invisible">
-        <span>Sidebar or shortcut</span>
+        <span data-i18n="settings.sidebarOrShortcut">Sidebar or shortcut</span>
       </label>
     </div>
   </section>
 
   <section class="settings-section">
-    <h3 class="settings-heading">Preferences</h3>
-    <p class="pm-subtitle">Extension behaviour on assistant pages and in the side panel.</p>
+    <h3 class="settings-heading" data-i18n="settings.language">Language</h3>
+    <p class="pm-subtitle" data-i18n="settings.languageHelp">Choose the interface language.</p>
+    <select id="ui-language-select" class="opm-input-field settings-language-select">
+      <option value="auto" data-i18n="settings.languageAuto">Automatic (browser language)</option>
+      <option value="en" data-i18n="settings.languageEnglish">English</option>
+      <option value="zh-CN" data-i18n="settings.languageChinese">Simplified Chinese</option>
+    </select>
+  </section>
+
+  <section class="settings-section">
+    <h3 class="settings-heading" data-i18n="settings.preferences">Preferences</h3>
+    <p class="pm-subtitle" data-i18n="settings.preferencesHelp">Extension behaviour on assistant pages and in the side panel.</p>
     <div class="settings-toggle-list">
       <label class="settings-toggle-row">
-        <span>Append prompts to text</span>
+        <span data-i18n="settings.appendPrompts">Append prompts to text</span>
         <input type="checkbox" id="toggle-append-mode" class="settings-toggle-input">
         <span class="settings-toggle-switch" aria-hidden="true"></span>
       </label>
       <label class="settings-toggle-row">
-        <span>Enable tags</span>
+        <span data-i18n="settings.enableTags">Enable tags</span>
         <input type="checkbox" id="toggle-enable-tags" class="settings-toggle-input">
         <span class="settings-toggle-switch" aria-hidden="true"></span>
       </label>
       <label class="settings-toggle-row">
-        <span>Force dark mode</span>
+        <span data-i18n="settings.forceDarkMode">Force dark mode</span>
         <input type="checkbox" id="toggle-force-dark" class="settings-toggle-input">
         <span class="settings-toggle-switch" aria-hidden="true"></span>
       </label>
@@ -90,27 +102,27 @@
   </section>
 
   <section class="settings-section" id="tag-management-section" hidden>
-    <h3 class="settings-heading">Tag management</h3>
-    <p class="pm-subtitle">Drag to reorder tags. Remove a tag from every prompt.</p>
+    <h3 class="settings-heading" data-i18n="tags.management">Tag management</h3>
+    <p class="pm-subtitle" data-i18n="tags.managementHelp">Drag to reorder tags. Remove a tag from every prompt.</p>
     <div id="tag-management-list" class="settings-tag-mgmt-list" aria-live="polite"></div>
-    <p id="tag-management-empty" class="pm-subtitle" hidden>No tags yet — add tags when creating or editing prompts.</p>
+    <p id="tag-management-empty" class="pm-subtitle" hidden data-i18n="tags.empty">No tags yet — add tags when creating or editing prompts.</p>
   </section>
 
   <section class="settings-section">
-    <h3 class="settings-heading">Prompt management</h3>
+    <h3 class="settings-heading" data-i18n="settings.promptManagement">Prompt management</h3>
     <div class="pm-row">
-      <button class="main" id="export-btn" type="button">Export</button>
-      <button class="main" id="import-btn" type="button">Import</button>
+      <button class="main" id="export-btn" type="button" data-i18n="common.export">Export</button>
+      <button class="main" id="import-btn" type="button" data-i18n="common.import">Import</button>
     </div>
     <input type="file" id="import-file" accept=".json" hidden />
     <p id="import-export-status" class="pm-subtitle settings-status" aria-live="polite"></p>
-    <button class="main settings-danger-btn" id="delete-all-prompts" type="button">Delete all prompts</button>
+    <button class="main settings-danger-btn" id="delete-all-prompts" type="button" data-i18n="settings.deleteAll">Delete all prompts</button>
   </section>
 
   <section class="settings-section">
-    <h3 class="settings-heading">Permissions editor</h3>
-    <p class="pm-subtitle">Sites where the extension can inject prompts.</p>
-    <p id="permissions-empty" class="pm-subtitle settings-permissions-empty">No website access granted yet.</p>
+    <h3 class="settings-heading" data-i18n="settings.permissionsEditor">Permissions editor</h3>
+    <p class="pm-subtitle" data-i18n="settings.permissionsHelp">Sites where the extension can inject prompts.</p>
+    <p id="permissions-empty" class="pm-subtitle settings-permissions-empty" data-i18n="settings.noWebsiteAccess">No website access granted yet.</p>
     <ul id="permissions-list" class="settings-permissions-list" aria-live="polite"></ul>
   </section>
   </div>

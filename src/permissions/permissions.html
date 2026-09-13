@@ -1,10 +1,12 @@
 <!doctype html>
-<html lang="en" data-bs-theme="auto">
+<html lang="en" data-bs-theme="auto" data-i18n-pending>
 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Open Prompt Manager</title>
+  <style>html[data-i18n-pending] body { visibility: hidden; animation: opm-i18n-fallback 0s 4s forwards; } @keyframes opm-i18n-fallback { to { visibility: visible; } }</style>
+  <script src="../i18n.js"></script>
+  <title data-i18n="app.documentTitle">Open Prompt Manager</title>
   <link href="permissions_custom.css" rel="stylesheet">
 
   <meta name="theme-color" content="#712cf9">
@@ -16,33 +18,33 @@
   <div class="custom-container custom-my-5">
     <div class="custom-jumbotron">
       <div class="custom-header-center">
-        <img src="../icons/icon128.png" alt="Open Prompt Manager Icon" width="48" height="48" class="custom-header-icon" id="header-icon">
+        <img src="../icons/icon128.png" data-i18n-alt="app.iconAlt" alt="Open Prompt Manager Icon" width="48" height="48" class="custom-header-icon" id="header-icon">
         <h1 class="custom-text-emphasis custom-theme-blue">Open Prompt Manager</h1>
       </div>
-      <p class="custom-lead-text">
+      <p class="custom-lead-text" data-i18n="onboarding.openSourceTagline">
         Open Source & Forever Simple.
       </p>
 
       <div class="custom-onboarding-section">
         <div class="custom-row">
           <div class="custom-col">
-            <img src="../icons/onboarding-start.png" alt="Hover to start" class="custom-onboarding-gif">
-            <h3 class="custom-onboarding-gif-title">Hover to Start...</h3>
-            <p class="custom-onboarding-caption">
+            <img src="../icons/onboarding-start.png" data-i18n-alt="onboarding.hoverStartAlt" alt="Hover to start" class="custom-onboarding-gif">
+            <h3 class="custom-onboarding-gif-title" data-i18n="onboarding.hoverStart">Hover to Start...</h3>
+            <p class="custom-onboarding-caption" data-i18n="onboarding.hoverStartCaption">
               Or check out Keyboard Shortcuts.
             </p>
           </div>
           <div class="custom-col">
-            <img src="../icons/onboarding-start2.png" alt="Explore features" class="custom-onboarding-gif">
-            <h3 class="custom-onboarding-gif-title">...And Explore</h3>
-            <p class="custom-onboarding-caption">Hot Corner, variables, context menu, tags, and more.</p>
+            <img src="../icons/onboarding-start2.png" data-i18n-alt="onboarding.exploreAlt" alt="Explore features" class="custom-onboarding-gif">
+            <h3 class="custom-onboarding-gif-title" data-i18n="onboarding.explore">...And Explore</h3>
+            <p class="custom-onboarding-caption" data-i18n="onboarding.exploreCaption">Hot Corner, variables, context menu, tags, and more.</p>
           </div>
         </div>
 
         <!-- COMMENT: Let new users pick hover button vs hot corner before granting permissions -->
         <section id="display-mode-section" class="custom-display-mode-section" aria-labelledby="display-mode-title">
-          <h3 id="display-mode-title" class="custom-display-mode-title">How would you like to open your prompts?</h3>
-          <p class="custom-display-mode-lead">Choose your preferred launcher. You can change this anytime in Settings.</p>
+          <h3 id="display-mode-title" class="custom-display-mode-title" data-i18n="onboarding.launcherQuestion">How would you like to open your prompts?</h3>
+          <p class="custom-display-mode-lead" data-i18n="onboarding.launcherLead">Choose your preferred launcher. You can change this anytime in Settings.</p>
           <div class="custom-display-mode-options" role="radiogroup" aria-labelledby="display-mode-title">
             <label class="custom-display-mode-option">
               <input type="radio" name="displayMode" value="standard">
@@ -50,9 +52,9 @@
                 <span class="custom-display-mode-preview custom-display-mode-preview-button" aria-hidden="true">
                   <span class="custom-display-mode-preview-dot"></span>
                 </span>
-                <span class="custom-display-mode-name">Floating button</span>
-                <span class="custom-display-mode-desc">Your prompts appear when you hover over the floating button.</span>
-                <span class="custom-display-mode-badge custom-display-mode-badge-spacer" aria-hidden="true">Default</span>
+                <span class="custom-display-mode-name" data-i18n="settings.floatingButton">Floating button</span>
+                <span class="custom-display-mode-desc" data-i18n="onboarding.floatingDesc">Your prompts appear when you hover over the floating button.</span>
+                <span class="custom-display-mode-badge custom-display-mode-badge-spacer" aria-hidden="true" data-i18n="common.default">Default</span>
               </span>
             </label>
             <label class="custom-display-mode-option">
@@ -61,9 +63,9 @@
                 <span class="custom-display-mode-preview custom-display-mode-preview-corner" aria-hidden="true">
                   <span class="custom-display-mode-preview-triangle"></span>
                 </span>
-                <span class="custom-display-mode-name">Hot corner</span>
-                <span class="custom-display-mode-desc">Move your cursor to the bottom-right corner to open prompts instantly.</span>
-                <span class="custom-display-mode-badge">Default</span>
+                <span class="custom-display-mode-name" data-i18n="settings.hotCorner">Hot corner</span>
+                <span class="custom-display-mode-desc" data-i18n="onboarding.hotCornerDesc">Move your cursor to the bottom-right corner to open prompts instantly.</span>
+                <span class="custom-display-mode-badge" data-i18n="common.default">Default</span>
               </span>
             </label>
             <label class="custom-display-mode-option">
@@ -72,9 +74,9 @@
                 <span class="custom-display-mode-preview custom-display-mode-preview-invisible" aria-hidden="true">
                   <span class="custom-display-mode-preview-shortcut">⌘⇧P</span>
                 </span>
-                <span class="custom-display-mode-name">Sidebar or shortcut</span>
-                <span class="custom-display-mode-desc">Open the Chrome side panel or use your keyboard shortcut — no on-page launcher.</span>
-                <span class="custom-display-mode-badge custom-display-mode-badge-spacer" aria-hidden="true">Default</span>
+                <span class="custom-display-mode-name" data-i18n="settings.sidebarOrShortcut">Sidebar or shortcut</span>
+                <span class="custom-display-mode-desc" data-i18n="onboarding.sidebarDesc">Open the Chrome side panel or use your keyboard shortcut — no on-page launcher.</span>
+                <span class="custom-display-mode-badge custom-display-mode-badge-spacer" aria-hidden="true" data-i18n="common.default">Default</span>
               </span>
             </label>
           </div>
@@ -82,42 +84,44 @@
 
         <!-- COMMENT: Features section (inserted between onboarding row and get-started button) -->
         <section class="custom-features-section" aria-labelledby="features-title">
-          <h3 id="features-title" class="custom-features-title">Features</h3>
+          <h3 id="features-title" class="custom-features-title" data-i18n="onboarding.features">Features</h3>
           <ul class="custom-features-list">
             <li class="custom-feature-item">
               <div class="custom-feature-copy">
-                <span class="custom-feature-text">Your prompts, in a single click</span>
-                <span class="custom-feature-subtitle">Just hover to get started.</span>
+                <span class="custom-feature-text" data-i18n="onboarding.featureOneTitle">Your prompts, in a single click</span>
+                <span class="custom-feature-subtitle" data-i18n="onboarding.featureOneDesc">Just hover to get started.</span>
               </div>
             </li>
             <li class="custom-feature-item">
               <div class="custom-feature-copy">
-                <span class="custom-feature-text">Available everywhere you need it</span>
-                <span class="custom-feature-subtitle">Works on any website.</span>
+                <span class="custom-feature-text" data-i18n="onboarding.featureEverywhereTitle">Available everywhere you need it</span>
+                <span class="custom-feature-subtitle" data-i18n="onboarding.featureEverywhereDesc">Works on any website.</span>
               </div>
             </li>
             <li class="custom-feature-item">
               <div class="custom-feature-copy">
-                <span class="custom-feature-text">Advanced features</span>
-                <span class="custom-feature-subtitle">Prompt Variables, Tags, Search, Append prompts, Easy Import.</span>
+                <span class="custom-feature-text" data-i18n="onboarding.featureAdvancedTitle">Advanced features</span>
+                <span class="custom-feature-subtitle" data-i18n="onboarding.featureAdvancedDesc">Prompt Variables, Tags, Search, Append prompts, Easy Import.</span>
               </div>
             </li>
             <li class="custom-feature-item">
               <div class="custom-feature-copy">
-                <span class="custom-feature-text">Keyboard Shortcuts</span>
-                <span class="custom-feature-subtitle">Keyboard shortcuts and navigation.</span>
+                <span class="custom-feature-text" data-i18n="onboarding.featureKeyboardTitle">Keyboard Shortcuts</span>
+                <span class="custom-feature-subtitle" data-i18n="onboarding.featureKeyboardDesc">Keyboard shortcuts and navigation.</span>
               </div>
             </li>
             <li class="custom-feature-item">
               <div class="custom-feature-copy">
-                <span class="custom-feature-text">Clean & Simple</span>
-                <span class="custom-feature-subtitle">User friendly, Light &amp; Dark mode.</span>
+                <span class="custom-feature-text" data-i18n="onboarding.featureCleanTitle">Clean & Simple</span>
+                <span class="custom-feature-subtitle" data-i18n="onboarding.featureCleanDesc">User friendly, Light &amp; Dark mode.</span>
               </div>
             </li>
             <li class="custom-feature-item">
               <div class="custom-feature-copy">
-                <span class="custom-feature-text">Open Source</span>
-                <span class="custom-feature-subtitle">No account required. <a href="https://github.com/jonathanbertholet/promptmanager/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">Privacy policy</a>.</span>
+                <span class="custom-feature-text" data-i18n="onboarding.featureOpenSourceTitle">Open Source</span>
+                <span class="custom-feature-subtitle" data-i18n-rich="onboarding.openSourceRich">
+                  No account required. <a data-i18n-slot="privacy" data-i18n="onboarding.privacyPolicy" href="https://github.com/jonathanbertholet/promptmanager/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">Privacy policy</a>.
+                </span>
               </div>
             </li>
           </ul>
@@ -134,15 +138,15 @@
                 <svg viewBox="0 0 24 24"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
               </span>
               <span class="custom-community-btn-copy">
-                <span class="custom-community-btn-title">Community prompts</span>
-                <span class="custom-community-btn-sub">Browse and import from the Open Prompt Database.</span>
+                <span class="custom-community-btn-title" data-i18n="onboarding.communityPrompts">Community prompts</span>
+                <span class="custom-community-btn-sub" data-i18n="onboarding.communityPromptsDesc">Browse and import from the Open Prompt Database.</span>
               </span>
               <svg class="custom-community-btn-open" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
             </a>
             <label class="custom-share-toggle" for="opd-share-toggle">
               <span class="custom-share-toggle-copy">
-                <span class="custom-share-toggle-title">Enable sharing</span>
-                <span class="custom-share-toggle-sub">Publish prompts you choose to the catalog.</span>
+                <span class="custom-share-toggle-title" data-i18n="onboarding.enableSharing">Enable sharing</span>
+                <span class="custom-share-toggle-sub" data-i18n="onboarding.enableSharingDesc">Publish prompts you choose to the catalog.</span>
               </span>
               <input type="checkbox" id="opd-share-toggle" class="custom-toggle-input" checked />
               <span class="custom-toggle-switch" aria-hidden="true"></span>
@@ -150,13 +154,13 @@
           </div>
         </section>
         <!-- COMMENT: Onboarding guidance — provider shortcuts below handle the actual launch -->
-        <p id="get-started-guidance" class="custom-onboarding-title">Choose an AI Assistant below to get started.</p>
+        <p id="get-started-guidance" class="custom-onboarding-title" data-i18n="onboarding.chooseAssistant">Choose an AI Assistant below to get started.</p>
       </div>
 
       <div class="custom-container-mt5">
         <div class="custom-section-border">
           <span class="custom-badge-absolute">
-            <small class="custom-badge-text">AI Assistants</small>
+            <small class="custom-badge-text" data-i18n="onboarding.aiAssistants">AI Assistants</small>
           </span>
           <div id="provider-shortcuts" class="custom-flex-wrap-group">
             <button
@@ -165,18 +169,18 @@
               class="custom-button custom-provider-shortcut custom-another-website-btn"
             >
               <span class="custom-another-website-icon" aria-hidden="true">+</span>
-              <span class="custom-mb-0">Another website</span>
+              <span class="custom-mb-0" data-i18n="onboarding.anotherWebsite">Another website</span>
             </button>
             <div id="another-website-hint" class="custom-another-website-hint" hidden>
-              <p>
+              <p data-i18n-rich="onboarding.anotherWebsiteHint">
                 To add a site that isn't listed above, open that website in your browser, open the
-                <strong>Open Prompt Manager</strong> sidebar, and click
-                <strong>+ Custom website</strong> under Assistants. Then click the chat input on the page.
+                <strong data-i18n-slot="manager">Open Prompt Manager</strong> sidebar, and click
+                <strong data-i18n-slot="customWebsite" data-i18n="sidepanel.customWebsite">+ Custom website</strong> under Assistants. Then click the chat input on the page.
               </p>
             </div>
           </div>
           <div style="margin-top: 1rem; text-align: center;">
-            <button id="remove-all-permissions" class="custom-button" style="padding: 0.5rem 0.9rem;">
+            <button id="remove-all-permissions" class="custom-button" style="padding: 0.5rem 0.9rem;" data-i18n="onboarding.removeAllPermissions">
               Remove all permissions
             </button>
           </div>
@@ -192,7 +196,7 @@
     <div class="custom-footer-content">
       <a href="https://github.com/jonathanbertholet/promptmanager" target="_blank" rel="noopener" class="custom-footer-link">GitHub</a>
       &nbsp;|&nbsp;
-      <a href="https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain" target="_blank" rel="noopener" class="custom-footer-link">Chrome Store</a>
+      <a href="https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain" target="_blank" rel="noopener" class="custom-footer-link" data-i18n="links.chromeStore">Chrome Store</a>
       &nbsp;|&nbsp;
       <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" class="custom-footer-link">CC BY 4.0</a>
     </div>

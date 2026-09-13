@@ -11,6 +11,8 @@ import { expandOriginPatterns } from './utils/originPatterns.js';
 import { uniqueNormalizedTags } from './utils/tags.js';
 import { mountSidepanelFooter } from './sidepanel/sidepanelFooter.js';
 
+const t = (key, params) => window.OPMI18n.t(key, params);
+
 // COMMENT: Storage keys shared with the in-page panel and side panel
 const DISPLAY_MODE_KEY = 'displayMode';
 const DEFAULT_DISPLAY_MODE = 'standard';
@@ -51,10 +53,10 @@ function storageSet(obj) {
   return new Promise(resolve => chrome.storage.local.set(obj, resolve));
 }
 
-function setImportExportStatus(message, isError = false) {
+function setImportExportStatus(key, isError = false) {
   const el = document.getElementById('import-export-status');
   if (!el) return;
-  el.textContent = message || '';
+  window.OPMI18n.bind(el, key);
   el.classList.toggle('settings-status-error', isError);
 }
 
@@ -135,6 +137,7 @@ async function refreshShortcutDisplay() {
   if (!display) return;
   const stored = await storageGet([KEYBOARD_SHORTCUT_KEY]);
   const shortcut = stored[KEYBOARD_SHORTCUT_KEY] || getDefaultKeyboardShortcut();
+  delete display.dataset.i18n;
   display.textContent = formatKeyboardShortcut(shortcut);
 }
 
@@ -149,7 +152,7 @@ function initKeyboardShortcutRecorder() {
 
   const stopRecording = () => {
     recording = false;
-    recordBtn.textContent = 'Record shortcut';
+    window.OPMI18n.bind(recordBtn, 'settings.recordShortcut');
     recordBtn.classList.remove('is-recording');
     if (handler) {
       document.removeEventListener('keydown', handler, true);
@@ -160,13 +163,14 @@ function initKeyboardShortcutRecorder() {
   recordBtn.addEventListener('click', () => {
     if (recording) {
       stopRecording();
+      refreshShortcutDisplay().catch(console.error);
       return;
     }
 
     recording = true;
-    recordBtn.textContent = 'Press keys… (Esc to cancel)';
+    window.OPMI18n.bind(recordBtn, 'settings.pressKeysCancel');
     recordBtn.classList.add('is-recording');
-    display.textContent = 'Listening…';
+    window.OPMI18n.bind(display, 'settings.listening');
 
     handler = async (event) => {
       event.preventDefault();
@@ -194,6 +198,7 @@ function initKeyboardShortcutRecorder() {
 
       await storageSet({ [KEYBOARD_SHORTCUT_KEY]: shortcut });
       stopRecording();
+      delete display.dataset.i18n;
       display.textContent = formatKeyboardShortcut(shortcut);
     };
 
@@ -269,7 +274,7 @@ async function renderTagManagement() {
       handle.type = 'button';
       handle.className = 'settings-tag-drag';
       handle.setAttribute('draggable', 'true');
-      handle.setAttribute('aria-label', `Reorder tag ${tag}`);
+      window.OPMI18n.bind(handle, 'tags.reorderNamed', { tag }, 'aria-label');
       handle.innerHTML = `<img src="${chrome.runtime.getURL('icons/drag_indicator.svg')}" width="14" height="14" alt="">`;
 
       handle.addEventListener('dragstart', (event) => {
@@ -292,10 +297,10 @@ async function renderTagManagement() {
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'settings-tag-remove';
-      removeBtn.setAttribute('aria-label', `Remove tag ${tag} from all prompts`);
+      window.OPMI18n.bind(removeBtn, 'tags.removeNamed', { tag }, 'aria-label');
       removeBtn.textContent = '×';
       removeBtn.addEventListener('click', async () => {
-        if (!confirm(`Remove tag "${tag}" from all prompts?`)) return;
+        if (!confirm(t('tags.removeConfirm', { tag }))) return;
         const currentPrompts = await getPrompts();
         const nextPrompts = currentPrompts.map((prompt) => ({
           ...prompt,
@@ -427,7 +432,7 @@ async function getGrantedSiteEntries() {
     if (pattern === '<all_urls>') {
       return {
         pattern,
-        label: 'All websites',
+        label: t('settings.allWebsites'),
         url: 'https://example.com',
         iconUrl: chrome.runtime.getURL('icons/language.svg'),
       };
@@ -533,14 +538,15 @@ async function renderWebsitePermissions() {
     const label = document.createElement('span');
     label.className = 'settings-permission-label';
     label.textContent = entry.label;
+    if (entry.pattern === '<all_urls>') window.OPMI18n.bind(label, 'settings.allWebsites');
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'settings-permission-remove';
-    removeBtn.setAttribute('aria-label', `Remove access to ${entry.label}`);
+    window.OPMI18n.bind(removeBtn, entry.pattern === '<all_urls>' ? 'settings.removeAllAccess' : 'settings.removeAccess', { site: entry.label }, 'aria-label');
     removeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12l-4.89 4.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z"/></svg>';
     removeBtn.addEventListener('click', async () => {
-      const confirmed = confirm(`Remove access to ${entry.label}?`);
+      const confirmed = confirm(t(entry.pattern === '<all_urls>' ? 'settings.removeAllAccessConfirm' : 'settings.removeAccessConfirm', { site: entry.label }));
       if (!confirmed) return;
 
       await new Promise(resolve => {
@@ -570,18 +576,38 @@ function initWebsitePermissions() {
   });
 }
 
+function initLanguagePicker() {
+  const select = document.getElementById('ui-language-select');
+  if (!select) return;
+  const sync = () => { select.value = window.OPMI18n.getPreference(); };
+  sync();
+  select.addEventListener('change', async () => {
+    const previous = window.OPMI18n.getPreference();
+    try {
+      await window.OPMI18n.setLanguage(select.value);
+    } catch (error) {
+      select.value = previous;
+      window.alert(t('settings.languageSaveFailed'));
+      console.error(error);
+    }
+  });
+  window.OPMI18n.subscribe(sync);
+}
+
 async function deleteAllPrompts() {
-  if (confirm('Are you sure you want to delete all prompts? This action cannot be undone.')) {
+  if (confirm(t('settings.deleteAllConfirm'))) {
     await setPrompts([]);
-    setImportExportStatus('All prompts deleted.');
+    setImportExportStatus('settings.allDeleted');
     renderTagManagement().catch(console.error);
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await window.OPMI18n.ready;
   const shell = document.querySelector('.settings-page-shell');
   mountSidepanelFooter({ active: 'settings', root: shell || document.body });
 
+  initLanguagePicker();
   initDisplayModePicker();
   initPreferenceToggles();
   initKeyboardShortcutRecorder();
@@ -593,10 +619,10 @@ document.addEventListener('DOMContentLoaded', () => {
     exportButton.addEventListener('click', async () => {
       try {
         await exportPrompts();
-        setImportExportStatus('Export started — check your downloads folder.');
+        setImportExportStatus('settings.exportStarted');
       } catch (err) {
         console.error(err);
-        setImportExportStatus('Export failed.', true);
+        setImportExportStatus('settings.exportFailed', true);
       }
     });
   }
@@ -611,11 +637,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!file) return;
       try {
         await importPrompts(file);
-        setImportExportStatus('Import successful — prompts merged.');
+        setImportExportStatus('settings.importSuccess');
         renderTagManagement().catch(console.error);
       } catch (err) {
         console.error(err);
-        setImportExportStatus(err?.message || 'Import failed — invalid JSON file.', true);
+        setImportExportStatus(err instanceof SyntaxError ? 'settings.importFailed' : 'settings.importError', true);
       }
     });
   }

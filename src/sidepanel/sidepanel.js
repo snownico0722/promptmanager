@@ -18,6 +18,9 @@ import { expandOriginPatterns, hasAnyOriginPermission } from '../utils/originPat
 import { normalizeTag, uniqueNormalizedTags } from '../utils/tags.js';
 import { mountSidepanelFooter } from './sidepanelFooter.js';
 
+const t = (key, params) => window.OPMI18n.t(key, params);
+const bind = (element, key, params, attribute) => window.OPMI18n.bind(element, key, params, attribute);
+
 /** @type {ReturnType<typeof collectPromptFormRefs>|null} */
 let promptFormEls = null;
 
@@ -170,7 +173,7 @@ function openVariableInputView(prompt) {
     const input = document.createElement('textarea');
     input.className = `opm-textarea-field ${themeClass}`;
     input.rows = 2;
-    input.placeholder = `${displayLabel} value`;
+    bind(input, 'prompt.variableValue', { name: displayLabel }, 'placeholder');
     input.dataset.variable = variableName;
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -226,8 +229,12 @@ function resetPromptForm({ keepOpen = false } = {}) {
   if (contentInput) contentInput.value = '';
   if (uuidInput) uuidInput.value = '';
   if (formTagInput) formTagInput.setTags([]);
-  if (submitButton) submitButton.textContent = 'Save prompt';
-  if (cancelButton) cancelButton.textContent = 'Back';
+  if (submitButton) {
+    const label = submitButton.querySelector('[data-i18n]');
+    if (label) { label.dataset.i18n = 'prompt.save'; label.textContent = t('prompt.save'); }
+    else submitButton.textContent = t('prompt.save');
+  }
+  if (cancelButton) { cancelButton.dataset.i18n = 'common.back'; cancelButton.textContent = t('common.back'); }
 
   if (!keepOpen) setComposerOpen(false);
 }
@@ -247,10 +254,15 @@ function openComposerView({ title = '', content = '', uuid = '', tags = [] } = {
   if (formTagInput) formTagInput.setTags(tags);
 
   if (submitButton) {
-    submitButton.textContent = uuid ? 'Update' : 'Save prompt';
+    const key = uuid ? 'prompt.update' : 'prompt.save';
+    const label = submitButton.querySelector('[data-i18n]');
+    if (label) { label.dataset.i18n = key; label.textContent = t(key); }
+    else submitButton.textContent = t(key);
   }
   if (cancelButton) {
-    cancelButton.textContent = uuid ? 'Cancel' : 'Back';
+    const key = uuid ? 'common.cancel' : 'common.back';
+    cancelButton.dataset.i18n = key;
+    cancelButton.textContent = t(key);
   }
 
   setComposerOpen(true);
@@ -362,7 +374,7 @@ async function resetInputDetectionForTab(tab, { pendingPrompt } = {}) {
 async function insertPromptIntoActiveTab(prompt) {
   const tab = await getActiveBrowserTab();
   if (!tab?.id || !tab.url || !/^https?:/i.test(tab.url)) {
-    showSidepanelToast('Open a chat site, then click a prompt to insert it.', { error: true });
+    showSidepanelToast('sidepanel.openChatFirst', { error: true });
     return false;
   }
 
@@ -393,11 +405,11 @@ async function insertPromptIntoActiveTab(prompt) {
   if (shouldPickField) {
     const pickerResult = await startInputPickerForTab(tab, { pendingPrompt });
     if (pickerResult?.error === 'permission_denied') {
-      showSidepanelToast('Allow site access for this page to pick its input field.', { error: true });
+      showSidepanelToast('sidepanel.allowSiteAccess', { error: true });
       return false;
     }
     if (!pickerResult?.ok && pickerResult?.error !== 'picker_already_active') {
-      showSidepanelToast(pickerResult?.error || 'Could not start input picker on this page.', { error: true });
+      showSidepanelToast('sidepanel.pickerStartFailed', { error: true });
       return false;
     }
     cachedPermissionAllowed = null;
@@ -408,10 +420,10 @@ async function insertPromptIntoActiveTab(prompt) {
   // COMMENT: Known assistants already have a selector. Auto-picker is noisy when the
   // composer is still loading, but the user can pin a new field if the UI changed.
   if (result?.error === 'no_input' && result?.knownSite) {
-    showSidepanelToast('No chat input found. Wait for it to load, or pick the field if the page changed.', {
+    showSidepanelToast('sidepanel.noInputKnown', {
       error: true,
       action: {
-        label: 'Pick field',
+        labelKey: 'sidepanel.pickField',
         onClick: () => startKnownSiteInputPicker(tab, pendingPrompt),
       },
     });
@@ -430,31 +442,31 @@ async function insertPromptIntoActiveTab(prompt) {
 async function startKnownSiteInputPicker(tab, pendingPrompt) {
   const pickerResult = await startInputPickerForTab(tab, { pendingPrompt });
   if (pickerResult?.error === 'permission_denied') {
-    showSidepanelToast('Allow site access for this page to pick its input field.', { error: true });
+    showSidepanelToast('sidepanel.allowSiteAccess', { error: true });
     return;
   }
   if (!pickerResult?.ok && pickerResult?.error !== 'picker_already_active') {
-    showSidepanelToast(pickerResult?.error || 'Could not start input picker on this page.', { error: true });
+    showSidepanelToast('sidepanel.pickerStartFailed', { error: true });
   }
 }
 
 function mapInsertError(code) {
   switch (code) {
   case 'no_permission':
-    return 'This page is not enabled. Grant it under Assistants, then try again.';
+    return 'sidepanel.pageNotEnabled';
   case 'no_input':
-    return 'No chat input found on this page. Wait for it to finish loading, then try again.';
+    return 'sidepanel.noInput';
   case 'no_active_tab':
-    return 'Open a chat site, then click a prompt to insert it.';
+    return 'sidepanel.openChatFirst';
   case 'prompt_not_found':
-    return 'That prompt could not be found. Refresh the side panel and try again.';
+    return 'sidepanel.promptMissing';
   case 'inject_failed':
   case 'handler_missing':
-    return 'Could not reach this page. Reload the tab and try again.';
+    return 'sidepanel.pageUnreachable';
   case 'insert_failed':
-    return 'The prompt did not land in the chat input. Click the input, then try again.';
+    return 'sidepanel.insertMissed';
   default:
-    return 'Could not insert this prompt. Try again.';
+    return 'sidepanel.insertFailed';
   }
 }
 
@@ -499,7 +511,7 @@ async function refreshCustomWebsiteButton(customWebsiteBtn) {
     customWebsiteBtn.disabled = true;
     customWebsiteBtn.classList.remove('is-pinned', 'is-learned');
     customWebsiteBtn.setAttribute('aria-pressed', 'false');
-    customWebsiteBtn.title = 'Open a website tab, then click to pick its input field';
+    customWebsiteBtn.title = t('sidepanel.customWebsiteOpenTab');
     return;
   }
 
@@ -520,11 +532,11 @@ async function refreshCustomWebsiteButton(customWebsiteBtn) {
   customWebsiteBtn.classList.toggle('is-learned', Boolean(learned) && !pinned);
   customWebsiteBtn.setAttribute('aria-pressed', hasDetection ? 'true' : 'false');
   if (pinned) {
-    customWebsiteBtn.title = `Reset input field on ${hostname}${stored?.label ? ` (${stored.label})` : ''} — click to re-pick`;
+    customWebsiteBtn.title = t('inputPicker.resetPinned', { host: hostname, label: stored?.label ? ` (${stored.label})` : '' });
   } else if (learned) {
-    customWebsiteBtn.title = `Reset auto-detected input on ${hostname} — click to re-pick`;
+    customWebsiteBtn.title = t('inputPicker.resetLearned', { host: hostname });
   } else {
-    customWebsiteBtn.title = `Pick the input field on ${hostname}`;
+    customWebsiteBtn.title = t('inputPicker.pickOnHost', { host: hostname });
   }
 }
 
@@ -548,11 +560,11 @@ async function handleCustomWebsiteAction(customWebsiteBtn) {
   if (currentlyPinned || currentlyLearned) {
     const result = await resetInputDetectionForTab(tab);
     if (result?.error === 'permission_denied') {
-      window.alert('Allow site access for this page to pick its input field.');
+      window.alert(t('sidepanel.allowSiteAccess'));
       return;
     }
     if (!result?.ok && result?.error !== 'picker_already_active') {
-      window.alert(result?.error || 'Could not reset input detection on this page.');
+      window.alert(t('sidepanel.pickerResetFailed'));
       return;
     }
     await refreshCustomWebsiteButton(customWebsiteBtn);
@@ -562,11 +574,11 @@ async function handleCustomWebsiteAction(customWebsiteBtn) {
 
   const result = await startInputPickerForTab(tab);
   if (result?.error === 'permission_denied') {
-    window.alert('Allow site access for this page to pick its input field.');
+    window.alert(t('sidepanel.allowSiteAccess'));
     return;
   }
   if (!result?.ok && result?.error !== 'picker_already_active') {
-    window.alert(result?.error || 'Could not start input picker on this page.');
+    window.alert(t('sidepanel.pickerStartFailed'));
     return;
   }
 
@@ -584,11 +596,11 @@ function createCustomSitePill(hostname) {
   link.href = `https://${hostname}`;
   link.target = '_blank';
   link.rel = 'noopener';
-  link.title = `Open ${hostname}`;
+  bind(link, 'provider.open', { name: hostname }, 'title');
 
   const img = document.createElement('img');
   img.src = getFaviconFallbackForUrl(`https://${hostname}`);
-  img.alt = `${hostname} icon`;
+  bind(img, 'provider.icon', { name: hostname }, 'alt');
   img.width = 24;
   img.height = 24;
   img.className = 'llm-pill-icon custom-site-favicon';
@@ -616,7 +628,7 @@ function createCustomWebsiteButton() {
 
   const label = document.createElement('span');
   label.className = 'llm-pill-label';
-  label.textContent = '+ Custom website';
+  bind(label, 'sidepanel.customWebsite');
 
   button.appendChild(icon);
   button.appendChild(label);
@@ -825,41 +837,39 @@ function mapPublishError(code) {
   const key = publishErrorCode(code);
   switch (key) {
   case 'not_registered':
-    return 'Set a publisher handle in Open Prompt Database settings before sharing.';
+    return 'opd.shareNeedHandle';
   case 'permission_denied':
-    return 'Catalog access is required to share. Grant permission and try again.';
+    return 'opd.shareNeedsAccess';
   case 'publish_disabled':
-    return 'Sharing is turned off in Open Prompt Database settings.';
+    return 'opd.shareDisabled';
   case 'prompt_not_found':
-    return 'That prompt is no longer in your library.';
+    return 'opd.promptGone';
   case 'catalog_lookup_failed':
-    return 'Could not reach the catalog. Check your connection and try again.';
+    return 'opd.catalogUnreachable';
   case 'check_failed':
   case 'register_failed':
-    return 'Could not register a publisher handle. Try again from Open Prompt Database settings.';
+    return 'opd.handleRegisterFailed';
   case 'turnstile_failed':
-    return 'Share verification failed. Try again in a moment.';
+    return 'opd.shareVerifyFailed';
   case 'unauthorized':
-    return 'Publisher identity is missing. Toggle sharing off and on in settings, then retry.';
+    return 'opd.publisherMissing';
   case 'rate_limited':
-    return 'Too many shares. Wait a bit and try again.';
+    return 'opd.tooManyShares';
   case 'validation_failed':
-    return 'That prompt could not be published. Check the title and content.';
+    return 'opd.publishInvalid';
   case 'forbidden':
-    return 'This catalog id is owned by another publisher.';
+    return 'opd.catalogOwnedOther';
   case 'invalid_json':
   case 'Failed to fetch':
-    return 'Could not reach openpromptdatabase.com. Grant catalog access and try again.';
+    return 'opd.siteUnreachable';
   case 'no_response':
-    return 'The extension background page did not respond. Reload the extension and retry.';
+    return 'opd.backgroundNoResponse';
   default:
-    return key
-      ? `Could not share this prompt (${key}). Try again.`
-      : 'Could not share this prompt. Try again.';
+    return key ? { key: 'opd.shareFailedCode', params: { code: key } } : 'opd.shareFailed';
   }
 }
 
-function showSidepanelToast(message, { error = false, action = null } = {}) {
+function showSidepanelToast(messageKey, { error = false, action = null } = {}) {
   const existing = document.getElementById('spm-toast');
   if (existing) existing.remove();
   const toast = document.createElement('div');
@@ -868,14 +878,14 @@ function showSidepanelToast(message, { error = false, action = null } = {}) {
   toast.setAttribute('role', 'status');
 
   const text = document.createElement('span');
-  text.textContent = message;
+  bind(text, typeof messageKey === 'string' ? messageKey : messageKey.key, messageKey.params);
   toast.appendChild(text);
 
-  if (action?.label && typeof action.onClick === 'function') {
+  if (action?.labelKey && typeof action.onClick === 'function') {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'spm-toast-action';
-    btn.textContent = action.label;
+    bind(btn, action.labelKey);
     btn.addEventListener('click', (event) => {
       event.preventDefault();
       toast.remove();
@@ -894,12 +904,9 @@ function showSidepanelToast(message, { error = false, action = null } = {}) {
 const pendingActionFeedback = new Map();
 
 function findPromptActionButton(uuid, kind) {
-  const li = document.querySelector(`#prompt-list li[data-uuid="${uuid}"]`);
+  const li = document.querySelector(`#prompt-list li[data-uuid="${CSS.escape(uuid)}"]`);
   if (!li) return null;
-  const label = kind === 'share'
-    ? 'Share to Open Prompt Database'
-    : 'Copy to clipboard';
-  return li.querySelector(`.spm-prompt-action-btn[aria-label="${label}"]`);
+  return li.querySelector(`.spm-prompt-action-btn[data-opm-action="${kind}"]`);
 }
 
 function schedulePromptActionFeedback(uuid, kind, btn) {
@@ -917,7 +924,7 @@ function applyPendingActionFeedback() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       for (const [uuid, kind] of [...pendingActionFeedback.entries()]) {
-        const li = document.querySelector(`#prompt-list li[data-uuid="${uuid}"]`);
+        const li = document.querySelector(`#prompt-list li[data-uuid="${CSS.escape(uuid)}"]`);
         const btn = findPromptActionButton(uuid, kind);
         if (!btn || !li) continue;
         li.classList.add('spm-action-feedback-visible');
@@ -960,13 +967,14 @@ function wrapPromptActionWithFeedback(btn, action, feedbackKey) {
   return btn;
 }
 
-function createPromptSvgActionButton(label, svgHtml, onClick, { withFeedback = false, feedbackKey = null } = {}) {
+function createPromptSvgActionButton(labelKey, svgHtml, onClick, { withFeedback = false, feedbackKey = null } = {}) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'spm-prompt-action-btn';
-  btn.title = label;
-  btn.setAttribute('aria-label', label);
+  bind(btn, labelKey, {}, 'title');
+  bind(btn, labelKey, {}, 'aria-label');
   btn.innerHTML = svgHtml;
+  if (feedbackKey?.kind) btn.dataset.opmAction = feedbackKey.kind;
   if (withFeedback) {
     wrapPromptActionWithFeedback(btn, onClick, feedbackKey);
   } else {
@@ -975,18 +983,19 @@ function createPromptSvgActionButton(label, svgHtml, onClick, { withFeedback = f
   return btn;
 }
 
-function createPromptImgActionButton(label, src, size, onClick, { withFeedback = false, feedbackKey = null } = {}) {
+function createPromptImgActionButton(labelKey, src, size, onClick, { withFeedback = false, feedbackKey = null } = {}) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'spm-prompt-action-btn';
-  btn.title = label;
-  btn.setAttribute('aria-label', label);
+  bind(btn, labelKey, {}, 'title');
+  bind(btn, labelKey, {}, 'aria-label');
   const img = document.createElement('img');
   img.src = src;
   img.alt = '';
   img.width = size;
   img.height = size;
   btn.appendChild(img);
+  if (feedbackKey?.kind) btn.dataset.opmAction = feedbackKey.kind;
   if (withFeedback) {
     wrapPromptActionWithFeedback(btn, onClick, feedbackKey);
   } else {
@@ -1003,7 +1012,7 @@ function buildPromptListItemActions(prompt) {
   primary.className = 'spm-prompt-actions-primary';
 
   primary.appendChild(createPromptImgActionButton(
-    'Copy to clipboard',
+    'prompt.copy',
     '../icons/copy.png',
     14,
     async () => {
@@ -1014,7 +1023,7 @@ function buildPromptListItemActions(prompt) {
 
   if (cachedOpdPublishEnabled) {
     primary.appendChild(createPromptSvgActionButton(
-      'Share to Open Prompt Database',
+      'opd.shareAction',
       SPM_SHARE_ICON_SVG,
       async () => publishPromptToOpd(prompt.uuid),
       { withFeedback: true, feedbackKey: { uuid: prompt.uuid, kind: 'share' } },
@@ -1028,7 +1037,7 @@ function buildPromptListItemActions(prompt) {
   overflow.className = 'spm-prompt-actions-overflow';
 
   overflow.appendChild(createPromptImgActionButton(
-    'Edit',
+    'common.edit',
     '../icons/edit-icon.png',
     14,
     (e) => {
@@ -1043,18 +1052,18 @@ function buildPromptListItemActions(prompt) {
   ));
 
   overflow.appendChild(createPromptImgActionButton(
-    'Delete',
+    'common.delete',
     '../icons/delete.svg',
     18,
     async (e) => {
       e.stopPropagation();
-      if (!window.confirm('Are you sure you want to delete this prompt?')) return;
+      if (!window.confirm(t('prompt.deleteConfirm'))) return;
       await PromptStorage.deletePrompt(prompt.uuid);
     },
   ));
 
   const moreBtn = createPromptSvgActionButton(
-    'More actions',
+    'prompt.moreActions',
     SPM_MORE_VERT_ICON_SVG,
     (e) => {
       e.stopPropagation();
@@ -1142,7 +1151,7 @@ function createSidepanelTagInput({ initialTags = [] } = {}) {
 
   const input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'Enter tags here.';
+  bind(input, 'tags.inputPlaceholder', {}, 'placeholder');
   input.className = 'spm-tag-input';
   input.autocomplete = 'off';
 
@@ -1358,7 +1367,7 @@ async function renderTagsFilterBar(prompts, enableTagsOverride) {
   };
 
   const selected = (activeTagFilter || 'all').toLowerCase();
-  bar.appendChild(makePill('All', 'all', selected === 'all'));
+  bar.appendChild(bind(makePill('', 'all', selected === 'all'), 'tags.all'));
   orderedTags.forEach(tag => {
     const isSelected = selected === String(tag).toLowerCase();
     bar.appendChild(makePill(String(tag), tag, isSelected));
@@ -1582,7 +1591,7 @@ async function renderLLMsSectionBody({ pinnedInputs: pinnedInputsOverride } = {}
     a.className = `llm-pill icon-only ${active ? 'active' : 'inactive'}`;
     a.setAttribute('data-provider', name);
     a.setAttribute('data-url-pattern', urlPattern || '');
-    a.setAttribute('title', active ? `Open ${name}` : `Activate ${name}`);
+    bind(a, active ? 'provider.open' : 'provider.activate', { name }, 'title');
     // Active pills open their provider page
     if (active && url) {
       a.href = url;
@@ -1595,7 +1604,7 @@ async function renderLLMsSectionBody({ pinnedInputs: pinnedInputsOverride } = {}
     // Icon
     const img = document.createElement('img');
     img.src = resolveProviderIconUrl(iconUrl, url);
-    img.alt = `${name} icon`;
+    bind(img, 'provider.icon', { name }, 'alt');
     img.width = 24;
     img.height = 24;
     img.className = 'llm-pill-icon';
@@ -1757,7 +1766,7 @@ function displayPrompts(prompts, totalCount = prompts.length) {
     titleSpan.style.display = 'inline-block';
     li.appendChild(titleSpan);
     li.appendChild(buildPromptListItemActions(prompt));
-    li.title = 'Insert into the chat on this page';
+    bind(li, 'prompt.insertCurrentPage', {}, 'title');
 
     li.addEventListener('click', () => {
       handlePromptRowClick(prompt).catch(console.error);
@@ -1791,6 +1800,7 @@ async function refreshPromptListView(force = false) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await window.OPMI18n.ready;
   maintainSidePanelPresence();
 
   if (isExpandedTabView()) {
@@ -1938,6 +1948,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // COMMENT: Refresh UI whenever prompts change in storage
   PromptStorage.onPromptsChanged(refreshPromptListView);
+  window.OPMI18n.subscribe(() => {
+    refreshCustomWebsiteButton(document.getElementById('custom-website-btn')).catch(console.error);
+  });
 
   // COMMENT: React to permissions updates live (permissions page writes aiProvidersMap)
   try {
@@ -1962,7 +1975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tags = formTagInput ? formTagInput.getTags() : [];
 
     if (!title || !String(content).trim()) {
-      showSidepanelToast('Add a title and prompt text before saving.', { error: true });
+      showSidepanelToast('prompt.validationBeforeSave', { error: true });
       return;
     }
 
@@ -1975,7 +1988,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       resetPromptForm();
     } catch (error) {
       console.error(error);
-      showSidepanelToast(error?.message || 'Could not save this prompt.', { error: true });
+      showSidepanelToast('prompt.saveError', { error: true });
     }
   });
 

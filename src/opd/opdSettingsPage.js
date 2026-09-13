@@ -17,6 +17,9 @@ import {
   clearOpdPendingUsername,
 } from './opdPublishToken.js';
 
+const bindText = (element, key) => globalThis.OPMI18n.bind(element, key);
+const clearText = element => { delete element.dataset.i18n; element.textContent = ''; };
+
 /**
  * @param {string} type
  * @param {object} [payload]
@@ -64,10 +67,10 @@ async function refreshCatalogAccessUi(els) {
   }
   if (catalogStatus) {
     if (granted) {
-      catalogStatus.textContent = '';
+      clearText(catalogStatus);
       catalogStatus.classList.remove('settings-status-error');
     } else if (!catalogStatus.classList.contains('settings-status-error')) {
-      catalogStatus.textContent = 'Needed for one-click import on the site.';
+      bindText(catalogStatus, 'opd.importPermissionHelp');
     }
   }
 }
@@ -95,7 +98,7 @@ function applyHandleLockedUi(els, username) {
     els.handleEditRow.hidden = locked;
   }
   if (els.handleStatus && locked) {
-    els.handleStatus.textContent = '';
+    clearText(els.handleStatus);
     els.handleStatus.classList.remove('settings-status-error');
   }
 }
@@ -161,7 +164,7 @@ export function initOpdSettingsPage(root = document) {
       els.handleInput.value = handle;
       await setOpdPendingUsername(handle);
       if (els.handleStatus) {
-        els.handleStatus.textContent = '';
+        clearText(els.handleStatus);
         els.handleStatus.classList.remove('settings-status-error');
       }
     });
@@ -187,7 +190,7 @@ export function initOpdSettingsPage(root = document) {
       const handle = normalizeHandleInput(els.handleInput);
       if (handle.length < 3) {
         if (els.handleStatus) {
-          els.handleStatus.textContent = 'Min. 3 characters.';
+          bindText(els.handleStatus, 'opd.minHandle');
           els.handleStatus.classList.add('settings-status-error');
         }
         return;
@@ -195,7 +198,7 @@ export function initOpdSettingsPage(root = document) {
 
       els.handleConfirm.disabled = true;
       if (els.handleStatus) {
-        els.handleStatus.textContent = '';
+        clearText(els.handleStatus);
         els.handleStatus.classList.remove('settings-status-error');
       }
 
@@ -203,7 +206,7 @@ export function initOpdSettingsPage(root = document) {
       const granted = await requestOpdCatalogPermission();
       if (!granted) {
         if (els.handleStatus) {
-          els.handleStatus.textContent = 'Catalog access is required to check handles.';
+          bindText(els.handleStatus, 'opd.checkNeedsAccess');
           els.handleStatus.classList.add('settings-status-error');
         }
         els.handleConfirm.disabled = false;
@@ -216,9 +219,7 @@ export function initOpdSettingsPage(root = document) {
       if (!avail?.ok) {
         if (els.handleStatus) {
           const permissionDenied = avail?.error === 'permission_denied';
-          els.handleStatus.textContent = permissionDenied
-            ? 'Catalog access is required to check handles.'
-            : 'Could not check that handle. Try again.';
+          bindText(els.handleStatus, permissionDenied ? 'opd.checkNeedsAccess' : 'opd.checkFailed');
           els.handleStatus.classList.add('settings-status-error');
         }
         els.handleConfirm.disabled = false;
@@ -226,7 +227,7 @@ export function initOpdSettingsPage(root = document) {
       }
       if (!avail.available) {
         if (els.handleStatus) {
-          els.handleStatus.textContent = 'Unavailable — try another.';
+          bindText(els.handleStatus, 'opd.unavailable');
           els.handleStatus.classList.add('settings-status-error');
         }
         els.handleConfirm.disabled = false;
@@ -236,9 +237,7 @@ export function initOpdSettingsPage(root = document) {
       const reg = await sendOpdMessage(OPD_MSG.PUBLISH_REGISTER, { username: handle });
       if (!reg?.ok) {
         if (els.handleStatus) {
-          els.handleStatus.textContent = reg?.error === 'permission_denied'
-            ? 'Catalog access is required to register a handle.'
-            : 'Could not confirm.';
+          bindText(els.handleStatus, reg?.error === 'permission_denied' ? 'opd.registerNeedsAccess' : 'opd.confirmFailed');
           els.handleStatus.classList.add('settings-status-error');
         }
         els.handleConfirm.disabled = false;
@@ -278,7 +277,7 @@ export function initOpdSettingsPage(root = document) {
         await syncOpdCatalogAccess();
         await refreshCatalogAccessUi(els);
       } else if (els.catalogStatus) {
-        els.catalogStatus.textContent = 'Permission denied.';
+        bindText(els.catalogStatus, 'opd.permissionDenied');
         els.catalogStatus.classList.add('settings-status-error');
       }
     });
