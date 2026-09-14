@@ -2,10 +2,10 @@
 
 body.manager-page,
 body.is-expanded-tab.manager-page {
-  height: 100vh;
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   margin: 0;
-  padding: 16px;
+  padding: 12px 16px 16px;
   overflow: hidden;
   box-sizing: border-box;
   background: var(--light-bg);
@@ -14,11 +14,19 @@ body.is-expanded-tab.manager-page {
 body.manager-page .manager-main-layout {
   display: grid;
   grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  align-items: stretch;
   gap: 16px;
   width: 100%;
-  height: calc(100vh - 32px);
+  height: 100%;
   min-height: 0;
+  margin: 0;
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+body.manager-page .manager-navigation,
+body.manager-page .manager-editor {
+  box-sizing: border-box;
 }
 
 body.manager-page .manager-navigation {
@@ -29,6 +37,7 @@ body.manager-page .manager-navigation {
   min-width: 0;
   max-width: none;
   height: 100%;
+  min-height: 0;
   max-height: none;
   padding: 0;
   overflow: hidden;
@@ -38,12 +47,105 @@ body.manager-page .manager-navigation {
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
+body.manager-page .manager-category-bar {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  min-height: 42px;
+  padding: 8px 10px 0;
+  flex: 0 0 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid rgba(54, 116, 181, 0.12);
+  scrollbar-width: none;
+}
+
+body.manager-page .manager-category-bar::-webkit-scrollbar,
+body.manager-page .manager-category-options::-webkit-scrollbar {
+  display: none;
+}
+
+body.manager-page .manager-category-tab {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 54px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: #718096;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+body.manager-page .manager-category-tab:hover {
+  color: var(--primary);
+  background: rgba(54, 116, 181, 0.06);
+}
+
+body.manager-page .manager-category-tab.is-active {
+  color: var(--primary);
+  background: rgba(54, 116, 181, 0.08);
+}
+
+body.manager-page .manager-category-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+body.manager-page .manager-category-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 39px;
+  padding: 7px 12px 5px;
+  flex: 0 0 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid rgba(54, 116, 181, 0.08);
+  scrollbar-width: none;
+}
+
+body.manager-page .manager-category-options[hidden] {
+  display: none;
+}
+
+body.manager-page .manager-category-option {
+  flex: 0 0 auto;
+  max-width: 180px;
+  padding: 5px 9px;
+  border: 1px solid rgba(54, 116, 181, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: #5f6f82;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+body.manager-page .manager-category-option:hover,
+body.manager-page .manager-category-option.is-active {
+  color: var(--primary);
+  border-color: rgba(54, 116, 181, 0.42);
+  background: rgba(54, 116, 181, 0.08);
+}
+
 body.manager-page .manager-nav-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 16px 16px 10px;
+  padding: 10px 16px;
   flex: 0 0 auto;
 }
 
@@ -75,10 +177,12 @@ body.manager-page .manager-nav-body {
   flex: 1 1 auto;
   min-height: 0;
   padding: 0 16px;
+  overflow: hidden;
 }
 
 body.manager-page .manager-nav-body .prompts-section {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -95,13 +199,17 @@ body.manager-page .manager-nav-controls[hidden] {
 }
 
 body.manager-page .manager-prompt-list {
+  display: flex !important;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-bottom: 10px;
 }
 
 body.manager-page #prompt-list li {
+  flex: 0 0 auto;
   border: 1px solid transparent;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -115,24 +223,8 @@ body.manager-page #prompt-list li.is-selected {
   border-color: rgba(54, 116, 181, 0.35);
 }
 
-body.manager-page .manager-empty-state {
-  margin: 8px 0 auto;
-  padding: 18px 12px;
-  text-align: center;
-  color: #718096;
-}
-
-body.manager-page .manager-empty-state p {
-  margin: 0 0 10px;
-}
-
-body.manager-page .manager-empty-create {
-  border: 1px solid rgba(54, 116, 181, 0.35);
-  border-radius: 8px;
-  padding: 7px 12px;
-  color: var(--primary);
-  background: transparent;
-  cursor: pointer;
+body.manager-page #prompt-list li.manager-category-hidden {
+  display: none !important;
 }
 
 body.manager-page .manager-editor,
@@ -154,12 +246,28 @@ body.manager-page .manager-editor #prompt-form {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
+  height: 100%;
   margin: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+body.manager-page .manager-editor #prompt-title,
+body.manager-page .manager-editor #prompt-tags-host,
+body.manager-page .manager-editor .form-actions {
+  flex: 0 0 auto;
 }
 
 body.manager-page .manager-editor #prompt-content {
   flex: 1 1 auto;
-  min-height: 180px;
+  min-height: 0;
+  overflow: auto;
+}
+
+body.manager-page .manager-editor .form-actions {
+  margin-top: 0;
+  padding-top: 10px;
+  background: var(--light-bg);
 }
 
 body.manager-page .manager-navigation > footer.footer {
@@ -303,6 +411,22 @@ body.manager-page .manager-settings-link .footer-md-icon {
     border-color: rgba(255,255,255,0.10);
   }
 
+  body.manager-page .manager-category-bar,
+  body.manager-page .manager-category-options {
+    border-color: rgba(255,255,255,0.08);
+  }
+
+  body.manager-page .manager-category-tab,
+  body.manager-page .manager-category-option {
+    color: #a0aec0;
+  }
+
+  body.manager-page .manager-category-tab.is-active,
+  body.manager-page .manager-category-option.is-active {
+    color: #90cdf4;
+    background: rgba(54, 116, 181, 0.22);
+  }
+
   body.manager-page #prompt-list li.is-selected,
   .settings-assistant-card.is-enabled {
     background: rgba(54, 116, 181, 0.22);
@@ -314,7 +438,10 @@ body.manager-page .manager-settings-link .footer-md-icon {
 }
 
 @media (max-width: 780px) {
-  body.manager-page {
+  body.manager-page,
+  body.is-expanded-tab.manager-page {
+    height: auto;
+    min-height: 100dvh;
     overflow: auto;
   }
 
@@ -325,10 +452,11 @@ body.manager-page .manager-settings-link .footer-md-icon {
   }
 
   body.manager-page .manager-navigation {
-    height: min(44vh, 460px);
+    height: min(44dvh, 460px);
   }
 
   body.manager-page .manager-editor {
-    min-height: 55vh;
+    min-height: 55dvh;
+    height: 55dvh;
   }
 }
