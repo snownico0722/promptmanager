@@ -28,7 +28,7 @@ function setup({ prompts = [{ uuid: 'a', title: 'Settings', content: 'Copy' }, {
         return item.id;
       },
     },
-    action: { async setTitle({ title }) { chrome.action.title = title; } },
+    action: { onClicked: event(), async setTitle({ title }) { chrome.action.title = title; } },
     sidePanel: { onOpened: event(), onClosed: event() },
     permissions: { getAll: async () => ({ origins: [] }), onRemoved: event(), onAdded: event() },
     scripting: {
@@ -41,9 +41,8 @@ function setup({ prompts = [{ uuid: 'a', title: 'Settings', content: 'Copy' }, {
     console: { log() {}, warn() {}, error(...args) { errors.push(args.join(' ')); } },
     chrome, setTimeout, clearTimeout, URL, AbortController,
     fetch: async url => ({ ok: true, json: async () => catalogs[url.match(/([^/]+)\.json$/)[1]] }),
-    OPD_CATALOG_URL: 'https://openpromptdatabase.com',
     OPM_DEV_FORCE_ONBOARDING_STORAGE_KEY: 'opmDevForceOnboarding',
-    initOpdCatalogAccess() {}, getPrompts: getPrompts || (async () => prompts),
+    installStorageWorker() {}, getPrompts: getPrompts || (async () => prompts),
     onPromptsChanged: f => changes.push(f), savePrompt: async data => saves.push(data),
   });
   vm.runInContext(core, context);
@@ -58,7 +57,7 @@ test('one menu owner, deterministic order, translated defaults, literal user tit
   assert.equal(r.items.get('prompt-a').title, 'Settings');
   assert.equal(r.items.get('prompt-b').title, '未命名提示词');
   assert.equal(r.chrome.contextMenus.onClicked.listeners.length, 1);
-  assert.equal(r.chrome.action.title, '打开侧边栏');
+  assert.equal(r.chrome.action.title, '打开 Open Prompt Manager');
   assert.deepEqual(r.errors, []);
 });
 
@@ -69,7 +68,7 @@ test('language changes during a delayed read settle to the newest language witho
   await r.context.OPMI18n.ready; await new Promise(resolve => setImmediate(resolve));
   await r.context.OPMI18n.setLanguage('en'); finish([]); await build; await r.context.drainMenu();
   assert.equal(r.items.get('save-as-prompt').title, 'Save new prompt');
-  assert.equal(r.chrome.action.title, 'Open Sidebar');
+  assert.equal(r.chrome.action.title, 'Open Prompt Manager');
   assert.deepEqual(r.errors, []);
 });
 
@@ -100,5 +99,5 @@ test('ordinary worker wake and initial stored preference do not rebuild persiste
   const r = setup(); await r.context.OPMI18n.ready;
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(r.removes, 0);
-  assert.equal(r.chrome.action.title, '打开侧边栏');
+  assert.equal(r.chrome.action.title, '打开 Open Prompt Manager');
 });

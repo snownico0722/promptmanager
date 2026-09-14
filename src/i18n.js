@@ -205,7 +205,6 @@
     ready, t, bind, apply, registerRoot, setLanguage, resolveLanguage,
     getLanguage: () => language,
     getPreference: () => preference,
-    localizedResource: path => language === 'zh-CN' && path === 'changelog.html' ? 'locales/changelog.zh-CN.html' : path,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
   };
 

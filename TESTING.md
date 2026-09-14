@@ -1,66 +1,56 @@
-## Testing
+# Verification
 
-### Automated Testing with Puppeteer
+Use Node.js 22 or newer. Install the locked dependencies with `npm ci`; Puppeteer
+installs Chrome for Testing. All required checks run without AI accounts or calls
+to live assistant services:
 
-This project includes automated tests using **Puppeteer** and **Jest** to ensure the extension works as expected.
-
-#### How to Find the Tests
-
-- All test files are located in the `tests` directory or follow the naming convention `*.test.js`.
-- The main test file for the extension is `index.test.js`.
-
-#### Running the Tests
-
-1. **Install Dependencies**  
-   Ensure all required dependencies are installed by running:
-
-   ```bash
-   npm install
-   ```
-
-2. **Run the Tests**
-   Use the following command to execute all tests:
-
-   ```bash
-   npm test
-   ```
-
-3. **View Test Results**
-   After running the tests, you will see the results in the terminal. Each test will display whether it passed or failed, along with any error messages.
-
-#### Example Test
-
-Here’s an example of what a test looks like in index.test.js:
-
-```javascript
-test("popup renders correctly", async () => {
-  const page = await browser.newPage();
-  await page.goto(`chrome-extension://${EXTENSION_ID}/popup.html`);
-
-  // Locate the element with tag <div> and class "link-container"
-  const linkContainer = await page.$("div.link-container");
-  expect(linkContainer).not.toBeNull();
-
-  // Get all child <a> elements of that div
-  const childrenA = await linkContainer.$$("a");
-  expect(childrenA.length).toBe(5);
-});
+```sh
+npm ci
+npm run check
 ```
 
-### Additional Notes
+The same command runs on pushes and pull requests in `.github/workflows/checks.yml`.
+It fails on lint errors, failed assertions, broken entry imports, or browser errors.
+A successful GitHub mergeability flag is not a test result.
 
-Tests are configured to run using Jest, so any file ending with .test.js will automatically be included.
-For more advanced testing, refer to the Puppeteer API documentation.
+## Commands
 
-To run a specific test, use the following command:
-```
-npx jest tests/{example}.test.js 
-```
+| Command | Coverage |
+| --- | --- |
+| `npm test` | Storage migration, concurrent writes, workspace isolation, backup/restore, import validation, localization, context-menu lifecycle, prompt insertion utilities, source references |
+| `npm run test:browser` | Installed extension: manager and settings initialization, responsive layout, save/assign/detach, multiple pages, language, shortcut, actual backup download, custom input picker, in-page variable insertion and workspace switch |
+| `npm run lint` | Source syntax/style and undefined identifiers |
+| `npm run build:prod` | Resource verification and cross-platform copy into `dist/extension/` |
 
-### Flat `tests/` Folder Structure
+`test:i18n:unit` still runs the localization subset. `test:i18n:browser` is an alias
+for the installed-extension browser suite. The old log-only live selector crawl
+and assertions against the removed title bar are no longer part of verification.
 
-```
-tests/
-├── index.test.js                # Demo Test
-└── element_selector.test.js     # Test Prompt Textarea for all supported LLMs 
-```
+## Browser test boundaries
+
+The browser suite copies `src/` into a temporary directory and adds only the local
+fixture host to that copy's permissions. It asserts the production manifest still
+has no required host permissions. External requests are blocked. The custom-site
+flow exercises a pre-granted local host, not Chrome's interactive permission dialog.
+
+Screenshots and a result summary are written to `test-results/` and uploaded by CI.
+Set `PUPPETEER_EXECUTABLE_PATH` only when using an alternative Chrome build that
+supports loading unpacked extensions. A managed browser may disallow this; do not
+change machine policy to run tests. Use the CI Chrome for Testing environment.
+
+These checks do not establish compatibility with all live ChatGPT/Claude/Gemini
+versions or account states. Before a release, load `dist/extension/` unpacked into
+a test profile, check the native grant/deny dialog on a custom site, and insert one
+plain and one variable prompt on each assistant you intend to support.
+
+## Data safety checks
+
+The worker is the only prompt-library writer. Tests use real service operations,
+not copies of production algorithms. They check a failed migration leaves legacy
+data intact, concurrent edits are not lost, deleted folders detach prompts,
+deleted workspaces move rather than delete their content, and a V3 export restored
+into a clean profile preserves workspace and folder ownership.
+
+Library backup is global. Destructive prompt/tag operations in settings and the
+in-page panel affect the current workspace. Legacy V1/V2 imports are added to the
+current workspace; V3 imports retain their saved workspace relationships.

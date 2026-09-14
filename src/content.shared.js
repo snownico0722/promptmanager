@@ -7,11 +7,6 @@
     if (window.__OPM_PROMPT_SHARED__) return;
     window.__OPM_PROMPT_SHARED__ = true;
 
-    // COMMENT: Sync with src/opd/opdConstants.js OPD_CATALOG_URL
-    const OPD_CATALOG_URL = 'https://openpromptdatabase.com';
-    // COMMENT: Same people/community SVG as the sidebar footer OPD link
-    const OPD_COMMUNITY_ICON_SVG = '<svg class="footer-md-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>';
-
     const createEl = window.createEl;
     const debounce = window.debounce || ((fn, wait = 100) => {
       let timeout;
@@ -60,7 +55,6 @@
       delete: `<img src="${chrome.runtime.getURL('icons/delete.svg')}" width="16" height="16" data-i18n-alt="common.delete" alt="Delete" data-i18n-title="common.delete" title="Delete" style="filter: ${iconFilter()}">`,
       edit: `<img src="${chrome.runtime.getURL('icons/edit.svg')}" width="16" height="16" data-i18n-alt="common.edit" alt="Edit" data-i18n-title="common.edit" title="Edit" style="filter: ${iconFilter()}">`,
       settings: `<img src="${chrome.runtime.getURL('icons/settings.svg')}" width="16" height="16" data-i18n-alt="settings.title" alt="Settings" data-i18n-title="settings.title" title="Settings" style="filter: ${iconFilter()}">`,
-      changelog: `<img src="${chrome.runtime.getURL('icons/notes.svg')}" width="16" height="16" data-i18n-alt="changelog.title" alt="Changelog" data-i18n-title="changelog.title" title="Changelog" style="filter: ${iconFilter()}">`,
     };
 
     const TagService = (() => {
@@ -402,56 +396,15 @@
         },
         createMenuBar() {
           const bar = createEl('div', { styles: { display: 'flex', alignItems: 'center', justifyContent: 'space-evenly', width: '100%' } });
-          const btns = ['list', 'add', 'edit', 'changelog', 'settings'];
+          const btns = ['list', 'add', 'edit', 'settings'];
           const actions = {
             list: e => { e.stopPropagation(); PromptUIManager.manuallyOpened = true; PanelRouter.mount(PanelView.LIST); },
             add: e => { e.stopPropagation(); PromptUIManager.manuallyOpened = true; PanelRouter.mount(PanelView.CREATE); },
             edit: e => { e.stopPropagation(); PromptUIManager.manuallyOpened = true; PanelRouter.mount(PanelView.EDIT); },
             settings: e => { e.stopPropagation(); PromptUIManager.manuallyOpened = true; PanelRouter.mount(PanelView.SETTINGS); },
-            changelog: e => { e.stopPropagation(); PromptUIManager.manuallyOpened = true; PanelRouter.mount(PanelView.CHANGELOG); },
           };
           btns.forEach(type => bar.appendChild(Elements.createIconButton(type, actions[type])));
           return bar;
-        },
-        /** COMMENT: Link to Open Prompt Database — shown below Create Prompt (in-page panel). */
-        createOpdCatalogLink() {
-          const dark = typeof window.isDarkMode === 'function' ? window.isDarkMode() : getMode() === 'dark';
-          const link = createEl('a', {
-            className: `opm-opd-catalog-link opm-${getMode()}`,
-            attributes: {
-              href: `${OPD_CATALOG_URL}/`,
-              target: '_blank',
-              rel: 'noopener noreferrer',
-            },
-            styles: {
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '8px',
-              marginTop: '4px',
-              padding: '10px 12px',
-              borderRadius: '6px',
-              textDecoration: 'none',
-              fontSize: '12px',
-              lineHeight: '1.45',
-              flexShrink: '0',
-              border: dark ? '1px solid rgba(99, 179, 237, 0.25)' : '1px solid rgba(54, 116, 181, 0.2)',
-              backgroundColor: dark ? 'rgba(54, 116, 181, 0.15)' : '#ebf8ff',
-              color: dark ? '#E2E8F0' : '#2C5282',
-            },
-          });
-          const icon = createEl('span', {
-            className: 'opm-opd-catalog-link-icon',
-            attributes: { 'aria-hidden': 'true' },
-            innerHTML: OPD_COMMUNITY_ICON_SVG,
-          });
-          const text = createEl('span', {
-            className: 'opm-opd-catalog-link-text',
-            attributes: { 'data-i18n': 'prompt.importCommunity' },
-            textContent: t('prompt.importCommunity'),
-          });
-          link.append(icon, text);
-          link.addEventListener('click', (e) => e.stopPropagation());
-          return link;
         },
         createBottomMenu() {
           const menu = createEl('div', {
@@ -730,7 +683,7 @@
               if (window.PromptUIManager?.state?.listMode === 'edit') {
                 window.PromptUIManager.requestListRefreshSuppression?.();
               }
-              await window.PromptStorageManager.setPrompts(newPrompts);
+              await window.PromptStorageManager.reorderPrompts(newPrompts);
             }
           );
 
@@ -781,6 +734,7 @@
           if (search) search.style.display = 'none';
 
           const enableTags = await window.PromptStorageManager.getEnableTags();
+          const workspaceId = await window.PromptStorageManager.getWorkspaceId();
 
           const form = createEl('div', { className: `opm-form-container opm-create-form opm-${getMode()}`, styles: { padding: '0', display: 'flex', flexDirection: 'column', gap: '8px' } });
           const titleIn = createEl('input', { attributes: { 'data-i18n-placeholder': 'prompt.title', placeholder: t('prompt.title') }, className: `opm-input-field opm-${getMode()}`, styles: { borderRadius: '4px' } });
@@ -806,14 +760,14 @@
             const promptTitle = titleIn.value.trim(), promptContent = contentArea.value.trim();
             if (!promptTitle || !promptContent) { alert(t('prompt.validationTitleContent')); return; }
             const tags = enableTags && tagInput ? tagInput.getTags() : [];
-            const res = await window.PromptStorageManager.savePrompt({ title: promptTitle, content: promptContent, tags });
+            const res = await window.PromptStorageManager.savePrompt({ title: promptTitle, content: promptContent, tags, workspaceId });
             if (!res.success) { alert(t('prompt.saveErrorGeneric')); return; }
             window.PanelRouter.mount(window.PanelView.LIST);
           });
 
           form.append(titleIn, contentArea);
           if (tagsBlock) form.append(tagsBlock);
-          form.append(saveBtn, Elements.createOpdCatalogLink());
+          form.append(saveBtn);
           form.addEventListener('click', e => e.stopPropagation());
           return form;
         },
@@ -979,7 +933,7 @@
             e.stopPropagation();
             if (!confirm(t('settings.deleteAllConfirmShort'))) return;
             try {
-              await window.PromptStorageManager.setPrompts([]);
+              await window.PromptStorageManager.deleteAllPrompts();
               window.PanelRouter.mount(window.PanelView.SETTINGS);
             } catch (_) {
               alert(t('settings.deleteFailed'));
@@ -1109,12 +1063,7 @@
                     e.stopPropagation();
                     if (!confirm(t('tags.removeConfirm', { tag }))) return;
                     try {
-                      const prompts = await window.PromptStorageManager.getPrompts();
-                      const updated = prompts.map(p => {
-                        const nextTags = Array.isArray(p.tags) ? p.tags.filter(t => t !== tag) : [];
-                        return { ...p, tags: nextTags };
-                      });
-                      await window.PromptStorageManager.setPrompts(updated);
+                      const updated = await window.PromptStorageManager.removeTagFromPrompts(tag);
                       counts = await TagService.getCounts(updated);
                       finalOrder = finalOrder.filter(t => t !== tag);
                       await window.PromptStorageManager.saveTagsOrder(finalOrder);
@@ -1131,66 +1080,7 @@
             } catch (_) { /* ignore */ }
           })();
 
-          // COMMENT: Community links — same SVG icon style as the side panel footer
-          const isDarkTheme = getMode() === 'dark';
-          const linkTileStyles = {
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            textDecoration: 'none',
-            borderRadius: '6px',
-            padding: '6px 10px',
-            fontSize: '13px',
-            fontWeight: '500',
-            border: isDarkTheme ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.05)',
-            backgroundColor: isDarkTheme ? 'rgba(255,255,255,0.03)' : 'rgba(15, 23, 42, 0.03)',
-            color: isDarkTheme ? THEME_COLORS.inputDarkText : THEME_COLORS.inputLightText,
-            transition: 'background-color 0.2s ease, border-color 0.2s ease'
-          };
-          const iconWrapStyles = {
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '32px',
-            height: '32px',
-            borderRadius: '999px',
-            color: '#3674B5',
-            flexShrink: '0'
-          };
-          const createCommunityLink = ({ labelKey, href, svgPath }) => {
-            const link = createEl('a', {
-              attributes: { href, target: '_blank', rel: 'noopener noreferrer' },
-              styles: { ...linkTileStyles }
-            });
-            const iconWrap = createEl('span', {
-              styles: { ...iconWrapStyles },
-              innerHTML: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="${svgPath}"/></svg>`
-            });
-            const text = createEl('span', { attributes: { 'data-i18n': labelKey }, textContent: t(labelKey) });
-            link.append(iconWrap, text);
-            return link;
-          };
-          const communityTitle = createEl('div', { attributes: { 'data-i18n': 'support.title' }, styles: { fontWeight: 'bold', fontSize: '13px', marginTop: '10px', opacity: 0.85 }, textContent: t('support.title') });
-          const communityLinks = createEl('div', { styles: { display: 'flex', flexDirection: 'column', gap: '6px' } });
-          communityLinks.append(
-            createCommunityLink({
-              labelKey: 'support.github',
-              href: 'https://github.com/jonathanbertholet/promptmanager',
-              svgPath: 'M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.49.5.09.68-.22.68-.48 0-.24-.01-.87-.01-1.7-2.78.62-3.37-1.37-3.37-1.37-.45-1.16-1.11-1.47-1.11-1.47-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.89 1.52 2.34 1.08 2.91.83.09-.64.35-1.08.63-1.33-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05A9.2 9.2 0 0 1 12 6.84c.85.004 1.71.12 2.51.34 1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.07.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.8 0 .27.18.58.69.48A10.01 10.01 0 0 0 22 12c0-5.52-4.48-10-10-10z'
-            }),
-            createCommunityLink({
-              labelKey: 'support.review',
-              href: 'https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain',
-              svgPath: 'M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.62L12 2 9.19 8.62 2 9.24l5.46 4.73L5.82 21 12 17.27z'
-            }),
-            createCommunityLink({
-              labelKey: 'support.coffee',
-              href: 'https://buymeacoffee.com/jonathanbertholet',
-              svgPath: 'M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4v-2z'
-            })
-          );
-
-          form.append(title, shortcutTitle, shortcutRow, settings, dataSectionTitle, dataActions, deleteAllBtn, tagMgmtTitle, tagMgmtContainer, communityTitle, communityLinks);
+          form.append(title, shortcutTitle, shortcutRow, settings, dataSectionTitle, dataActions, deleteAllBtn, tagMgmtTitle, tagMgmtContainer);
           form.addEventListener('click', e => e.stopPropagation());
           return form;
         },
@@ -1208,7 +1098,7 @@
               Array.from(promptsContainer.children)
                 .filter(node => node.classList?.contains('opm-prompt-list-item'))
                 .forEach((node, idx) => { node.dataset.index = idx; });
-              await window.PromptStorageManager.setPrompts(newPrompts);
+              await window.PromptStorageManager.reorderPrompts(newPrompts);
             }
           );
           prompts.forEach((p, idx) => {

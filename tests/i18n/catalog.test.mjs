@@ -50,10 +50,10 @@ test('all native locale keys, entry pages, scripts and icons exist', () => {
     const native = JSON.parse(read(`_locales/${lang}/messages.json`));
     for (const [, key] of JSON.stringify(m).matchAll(/__MSG_(\w+)__/g)) assert.ok(native[key]?.message, key);
   }
-  for (const name of [m.background.service_worker, m.side_panel.default_path, ...Object.values(m.icons)]) assert.ok(fs.existsSync(path.join(src, name)), name);
+  for (const name of [m.background.service_worker, 'sidepanel/index.html', ...Object.values(m.icons)]) assert.ok(fs.existsSync(path.join(src, name)), name);
   const bundle = read('service-worker.js').match(/const CONTENT_SCRIPT_FILES = \[([\s\S]*?)\];/)[1];
   for (const [, name] of bundle.matchAll(/'([^']+)'/g)) assert.ok(fs.existsSync(path.join(src, name)), name);
-  for (const page of ['sidepanel/index.html', 'settings.html', 'permissions/permissions.html', 'opd-settings.html']) {
+  for (const page of ['sidepanel/index.html', 'settings.html', 'permissions/permissions.html']) {
     const html = read(page);
     assert.match(html, /data-i18n-pending/);
     assert.match(html, /opm-i18n-fallback/);
@@ -61,8 +61,3 @@ test('all native locale keys, entry pages, scripts and icons exist', () => {
   }
 });
 
-test('Chinese changelog retains identifiers and valid variable examples', () => {
-  const text = read('locales/changelog.zh-CN.html');
-  assert.doesNotMatch(text, /U界面D|Material 界面|#变量名#|页面内 界面/);
-  assert.match(text, /UUID/); assert.match(text, /Material UI/); assert.match(text, /#name#/);
-});

@@ -2,7 +2,8 @@
 <html data-i18n-pending>
 <head>
   <title>Open Prompt Manager</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="../shared-ui.css" />
+  <script type="module" src="../theme.js"></script>
   <link rel="stylesheet" href="../manager.css" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,7 +14,7 @@
   <script src="../i18n.js"></script>
 </head>
 
-<body class="manager-page is-expanded-tab">
+<body class="manager-page">
   <div class="manager-page-shell">
     <section class="manager-workspace-bar manager-workspace-tabs-shell" aria-label="Workspace switcher">
       <div id="manager-workspace-tabs" class="manager-workspace-tabs" role="tablist" aria-label="Workspace choices"></div>
@@ -60,6 +61,7 @@
               <input id="prompt-tags-input" type="text" class="spm-tag-input" data-i18n-placeholder="tags.inputPlaceholder" placeholder="Add tags" autocomplete="off" />
             </div>
           </div>
+          <p id="manager-status" role="status"></p>
           <div class="form-actions">
             <button class="main" type="submit" id="submit-button">
               <img src="../icons/add-icon.png" data-i18n-alt="common.add" alt="Add" style="margin-right: 5px" />

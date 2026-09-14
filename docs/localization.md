@@ -24,11 +24,11 @@ A binding's key changes with its state: an edit button uses `prompt.update`, not
 
 User prompt titles, bodies, tags, handles, variable names and input values remain plain text. Never send them through `t()` as a key or insert them as HTML. Parameters are formatted literally (not recursively interpreted). Action lookup uses stable IDs/data attributes, not translated accessibility labels.
 
-## Rich sentences and changelog
+## Rich sentences
 
 A whole sentence uses `data-i18n-rich`, with named `{slots}` in its catalog entry. Existing children marked `data-i18n-slot` provide emphasis or links. A valid translation uses each slot exactly once. Language changes reuse those nodes and preserve their destinations and listeners; translations cannot create HTML. Invalid slot sets fall back to English without destroying existing links.
 
-The changelog is packaged static HTML, not user data or a catalog string containing arbitrary markup. Its view loads the locale-specific file directly, ignores obsolete responses, and labels an English fallback explicitly. Upstream screenshots embedded in onboarding are illustrative images and remain unchanged; translating UI text does not rewrite text inside images.
+Upstream screenshots embedded in onboarding are illustrative images and remain unchanged; translating UI text does not rewrite text inside images.
 
 ## Adding a language or message
 
@@ -39,9 +39,9 @@ Changing wording must not change layout, event destinations, permissions, prompt
 ## Verification
 
 ```sh
-npm install --ignore-scripts
+npm ci
 npm run test:i18n:unit
 PUPPETEER_EXECUTABLE_PATH=/path/to/chrome npm run test:i18n:browser
 ```
 
-Unit tests cover catalog parity and references, language races, fallbacks, and the worker/menu lifecycle. Browser tests execute real page/content scripts with mocked Chrome APIs and blocked external requests, checking first visible content, preserved drafts/carets, user text, rich slots/links, transient UI and changelog races. They are not a substitute for native Chrome/Edge installation and live third-party input-field acceptance tests.
+Unit tests cover catalog parity and references, language races, fallbacks, and the worker/menu lifecycle. Browser tests load the installed extension into Chrome for Testing, exercise language changes alongside manager/settings/content flows, and block external requests. Unit tests cover language races, fallback catalogs and rich slots. They are not a substitute for native Chrome/Edge installation and live third-party input-field acceptance tests.
