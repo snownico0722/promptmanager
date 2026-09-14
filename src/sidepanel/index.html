@@ -5,6 +5,7 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="../manager.css" />
   <link rel="stylesheet" href="../manager-workspaces.css" />
+  <link rel="stylesheet" href="../workspace-tabs-ui.css" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
@@ -18,17 +19,23 @@
 <body>
   <div class="main-layout manager-main-layout">
     <aside class="sidebar-panel manager-navigation">
-      <section class="manager-workspace-bar" aria-label="Workspace">
-        <span id="manager-workspace-label" class="manager-workspace-label">Workspace</span>
-        <select id="manager-workspace-select" class="manager-workspace-select" aria-label="Workspace"></select>
-        <button type="button" id="manager-workspace-add" class="manager-workspace-action" aria-label="New workspace" title="New workspace">+</button>
-        <button type="button" id="manager-workspace-rename" class="manager-workspace-action" aria-label="Rename workspace" title="Rename workspace">✎</button>
-        <button type="button" id="manager-workspace-delete" class="manager-workspace-action manager-workspace-action-danger" aria-label="Delete workspace" title="Delete workspace">×</button>
+      <section class="manager-workspace-bar manager-workspace-tabs-shell" aria-label="Workspace switcher">
+        <div id="manager-workspace-tabs" class="manager-workspace-tabs" role="tablist" aria-label="Workspace choices"></div>
+        <button type="button" id="manager-workspace-edit-toggle" aria-label="Edit" title="Edit" aria-pressed="false">✎</button>
+
+        <!-- Keep the existing workspace controller as an internal compatibility layer. -->
+        <div class="manager-workspace-legacy-controls" hidden>
+          <select id="manager-workspace-select" aria-label="Workspace"></select>
+          <button type="button" id="manager-workspace-add" aria-label="New workspace" title="New workspace">+</button>
+          <button type="button" id="manager-workspace-rename" aria-label="Rename workspace" title="Rename workspace">✎</button>
+          <button type="button" id="manager-workspace-delete" aria-label="Delete workspace" title="Delete workspace">×</button>
+        </div>
       </section>
 
-      <nav class="manager-category-bar" aria-label="Prompt categories" role="tablist">
+      <nav class="manager-category-bar" aria-label="Prompt navigation" role="tablist">
         <button type="button" class="manager-category-tab is-active" data-manager-category="all" data-label-en="All" data-label-zh="全部" role="tab" aria-selected="true">All</button>
-        <button type="button" class="manager-category-tab" data-manager-category="folders" data-label-en="Folders" data-label-zh="文件夹" role="tab" aria-selected="false">Folders</button>
+        <!-- Kept hidden so the existing folder controller can continue to drive real folder CRUD/filtering. -->
+        <button type="button" class="manager-category-tab" data-manager-category="folders" data-label-en="Folders" data-label-zh="文件夹" role="tab" aria-selected="false" hidden>Folders</button>
       </nav>
       <div id="manager-category-options" class="manager-category-options manager-folder-options" hidden aria-label="Folder filters"></div>
 
@@ -88,5 +95,6 @@
 
   <script type="module" src="sidepanel.js"></script>
   <script type="module" src="../fullpage-manager.js"></script>
+  <script type="module" src="../workspace-tabs-ui.js"></script>
 </body>
 </html>
