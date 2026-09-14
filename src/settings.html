@@ -3,6 +3,7 @@
 <head>
   <title data-i18n="settings.title">Settings</title>
   <link rel="stylesheet" href="sidepanel/styles.css">
+  <link rel="stylesheet" href="manager.css">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>html[data-i18n-pending] body { visibility: hidden; animation: opm-i18n-fallback 0s 4s forwards; } @keyframes opm-i18n-fallback { to { visibility: visible; } }</style>
@@ -19,6 +20,16 @@
   </header>
 
   <section class="settings-section settings-section-first">
+    <h3 class="settings-heading" data-i18n="sidepanel.assistants">AI Assistants</h3>
+    <p class="pm-subtitle" data-i18n="settings.permissionsHelp">Sites where the extension can inject prompts.</p>
+    <div id="settings-assistants-grid" class="settings-assistants-grid" aria-live="polite"></div>
+    <div class="settings-get-started-row">
+      <a class="settings-get-started-link" href="permissions/permissions.html" data-i18n="support.getStarted">Get Started</a>
+      <span class="pm-subtitle" data-i18n="onboarding.chooseAssistant">Choose an AI Assistant below to get started.</span>
+    </div>
+  </section>
+
+  <section class="settings-section">
     <h3 class="settings-heading" data-i18n="settings.keyboardShortcuts">Keyboard shortcuts</h3>
     <p class="pm-subtitle" data-i18n="settings.keyboardHelp">Customize how you open the in-page prompt panel on assistant sites.</p>
     <div class="settings-shortcut-row">
@@ -128,5 +139,6 @@
   </div>
 
   <script type="module" src="settings.js"></script>
+  <script type="module" src="settings-assistants.js"></script>
 </body>
 </html>
