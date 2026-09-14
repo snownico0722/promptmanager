@@ -1,0 +1,154 @@
+/* Refinement layer for the full-page manager workspace/folder navigation. */
+
+body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(54, 116, 181, 0.12);
+}
+
+body.manager-page .manager-workspace-legacy-controls[hidden] {
+  display: none !important;
+}
+
+body.manager-page .manager-workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+body.manager-page .manager-workspace-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+body.manager-page .manager-workspace-tab-wrap {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  overflow: hidden;
+  background: transparent;
+}
+
+body.manager-page .manager-workspace-tab-wrap.is-active {
+  border-color: rgba(54, 116, 181, 0.28);
+  background: rgba(54, 116, 181, 0.09);
+}
+
+body.manager-page .manager-workspace-tab {
+  min-width: 0;
+  max-width: 150px;
+  height: 32px;
+  padding: 0 11px;
+  border: 0;
+  background: transparent;
+  color: #5f6f82;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+body.manager-page .manager-workspace-tab:hover,
+body.manager-page .manager-workspace-tab-wrap.is-active .manager-workspace-tab {
+  color: var(--primary);
+}
+
+body.manager-page .manager-workspace-inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid rgba(54, 116, 181, 0.13);
+  background: transparent;
+  color: #718096;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+body.manager-page .manager-workspace-inline-action:hover {
+  color: var(--primary);
+  background: rgba(54, 116, 181, 0.08);
+}
+
+body.manager-page .manager-workspace-inline-action.is-danger:hover {
+  color: #c53030;
+  background: rgba(197, 48, 48, 0.08);
+}
+
+body.manager-page .manager-workspace-create-inline,
+body.manager-page #manager-workspace-edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(54, 116, 181, 0.22);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+body.manager-page .manager-workspace-create-inline:hover,
+body.manager-page #manager-workspace-edit-toggle:hover,
+body.manager-page #manager-workspace-edit-toggle.is-editing {
+  background: rgba(54, 116, 181, 0.09);
+  border-color: rgba(54, 116, 181, 0.40);
+}
+
+/* Only the "All" selector remains visible. Folders themselves are shown directly below it. */
+body.manager-page .manager-category-tab[data-manager-category="folders"] {
+  display: none !important;
+}
+
+body.manager-page .manager-category-bar {
+  min-height: 38px;
+  padding-top: 5px;
+}
+
+/* The existing "All folders" chip duplicates the visible "All" control. */
+body.manager-page .manager-hidden-all-folders {
+  display: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  body.manager-page .manager-workspace-tab-wrap.is-active {
+    border-color: rgba(144, 205, 244, 0.28);
+    background: rgba(54, 116, 181, 0.22);
+  }
+
+  body.manager-page .manager-workspace-tab {
+    color: #a0aec0;
+  }
+
+  body.manager-page .manager-workspace-tab-wrap.is-active .manager-workspace-tab {
+    color: #90cdf4;
+  }
+
+  body.manager-page .manager-workspace-inline-action {
+    border-left-color: rgba(255, 255, 255, 0.10);
+    color: #a0aec0;
+  }
+}
