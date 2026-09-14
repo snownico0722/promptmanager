@@ -217,6 +217,53 @@ body.manager-page .manager-prompt-folder-field-label-free .manager-prompt-folder
   width: 100% !important;
 }
 
+/* Full-page manager always consumes the available viewport. The editor textarea
+   owns the remaining vertical space and is intentionally not user-resizable. */
+html,
+body.manager-page,
+body.is-expanded-tab.manager-page {
+  height: 100%;
+  min-height: 100%;
+}
+
+body.manager-page,
+body.is-expanded-tab.manager-page {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+body.manager-page .manager-page-shell {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+body.manager-page .manager-page-shell > .manager-main-layout {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+body.manager-page .manager-navigation,
+body.manager-page .manager-editor {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+body.manager-page .manager-editor #prompt-form {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+body.manager-page .manager-editor #prompt-content {
+  flex: 1 1 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  resize: none !important;
+}
+
 @media (prefers-color-scheme: dark) {
   body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell,
   body.manager-page .manager-folder-options {
