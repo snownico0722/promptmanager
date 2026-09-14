@@ -1,7 +1,5 @@
-// UI refinement for the full-page manager.
-// Normal mode: flat workspace choices + one edit button.
-// Edit mode: rename/delete controls and a create button become available.
-// Folder navigation stays functional without a visible "Folders" category label.
+// Full-page UI refinement.
+// Workspace is the top-level context; folder scopes are one flat row inside the sidebar.
 
 let workspaceEditing = false;
 
@@ -19,6 +17,7 @@ function uiCopy() {
         rename: '重命名',
         remove: '删除',
         all: '全部',
+        uncategorized: '未分类',
         defaultName: '默认',
         name: '名称',
         keepOne: '至少需要保留一个。',
@@ -32,6 +31,7 @@ function uiCopy() {
         rename: 'Rename',
         remove: 'Delete',
         all: 'All',
+        uncategorized: 'Uncategorized',
         defaultName: 'Default',
         name: 'Name',
         keepOne: 'At least one must remain.',
@@ -96,13 +96,13 @@ function clickLegacyPromptAction(buttonId) {
   }
 }
 
-function clickLegacyDeleteAction(workspaceName) {
+function clickLegacyDeleteAction(itemName) {
   const button = document.getElementById('manager-workspace-delete');
   if (!button) return;
   const labels = uiCopy();
   const originalConfirm = window.confirm;
   const originalAlert = window.alert;
-  window.confirm = () => originalConfirm(format(labels.confirmRemove, { name: workspaceName }));
+  window.confirm = () => originalConfirm(format(labels.confirmRemove, { name: itemName }));
   window.alert = () => originalAlert(labels.keepOne);
   try {
     button.click();
@@ -127,6 +127,16 @@ function makeIconButton(className, text, title, onClick) {
   return button;
 }
 
+function resetWorkspaceLocalView() {
+  const search = document.getElementById('prompt-search-input');
+  if (search?.value) {
+    search.value = '';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  const list = document.getElementById('prompt-list');
+  if (list) list.scrollTop = 0;
+}
+
 function renderWorkspaceTabs() {
   const host = document.getElementById('manager-workspace-tabs');
   const editToggle = document.getElementById('manager-workspace-edit-toggle');
@@ -137,20 +147,20 @@ function renderWorkspaceTabs() {
   const options = workspaceOptions();
   host.replaceChildren();
 
-  options.forEach((workspace) => {
+  options.forEach((item) => {
     const wrap = document.createElement('span');
     wrap.className = 'manager-workspace-tab-wrap';
-    wrap.classList.toggle('is-active', workspace.id === currentId);
+    wrap.classList.toggle('is-active', item.id === currentId);
 
     const selectButton = document.createElement('button');
     selectButton.type = 'button';
     selectButton.className = 'manager-workspace-tab';
-    selectButton.textContent = workspace.name;
-    selectButton.title = workspace.name;
+    selectButton.textContent = item.name;
+    selectButton.title = item.name;
     selectButton.setAttribute('role', 'tab');
-    selectButton.setAttribute('aria-selected', String(workspace.id === currentId));
+    selectButton.setAttribute('aria-selected', String(item.id === currentId));
     selectButton.addEventListener('click', () => {
-      activateLegacyWorkspace(workspace.id);
+      activateLegacyWorkspace(item.id);
       renderWorkspaceTabs();
     });
     wrap.appendChild(selectButton);
@@ -160,13 +170,13 @@ function renderWorkspaceTabs() {
         'manager-workspace-inline-action',
         '✎',
         labels.rename,
-        () => activateThen(workspace.id, () => clickLegacyPromptAction('manager-workspace-rename')),
+        () => activateThen(item.id, () => clickLegacyPromptAction('manager-workspace-rename')),
       ));
       wrap.appendChild(makeIconButton(
         'manager-workspace-inline-action is-danger',
         '×',
         labels.remove,
-        () => activateThen(workspace.id, () => clickLegacyDeleteAction(workspace.name)),
+        () => activateThen(item.id, () => clickLegacyDeleteAction(item.name)),
       ));
     }
 
@@ -199,7 +209,12 @@ function wireWorkspaceTabs() {
     renderWorkspaceTabs();
   });
 
-  select.addEventListener('change', () => queueMicrotask(renderWorkspaceTabs));
+  // Switching the top-level context resets local search/scroll state as a complete view switch.
+  select.addEventListener('change', () => {
+    resetWorkspaceLocalView();
+    queueMicrotask(renderWorkspaceTabs);
+    queueMicrotask(syncFolderPresentation);
+  });
 
   const observer = new MutationObserver(() => queueMicrotask(renderWorkspaceTabs));
   observer.observe(select, { childList: true, subtree: true });
@@ -210,41 +225,40 @@ function hiddenFolderTab() {
   return document.querySelector('.manager-category-tab[data-manager-category="folders"]');
 }
 
-function visibleAllTab() {
-  return document.querySelector('.manager-category-tab[data-manager-category="all"]');
-}
-
 function folderOptionsHost() {
   return document.getElementById('manager-category-options');
 }
 
+function directFolderOptions(host) {
+  return Array.from(host?.children || []).filter((node) => node.classList.contains('manager-category-option'));
+}
+
 function syncFolderPresentation() {
   const host = folderOptionsHost();
-  const allTab = visibleAllTab();
-  if (!host || !allTab) return;
+  if (!host) return;
   const labels = uiCopy();
+  const [allOption, uncategorizedOption] = directFolderOptions(host);
 
-  // The first category option generated by the legacy controller is "All folders".
-  // Hide it because the visible "All" tab owns that action now.
-  const allFolders = host.querySelector('.manager-category-option');
-  if (allFolders && !allFolders.classList.contains('manager-hidden-all-folders')) {
-    allFolders.classList.add('manager-hidden-all-folders');
+  if (allOption) {
+    if (allOption.textContent !== labels.all) allOption.textContent = labels.all;
+    allOption.title = labels.all;
+    allOption.setAttribute('aria-label', labels.all);
   }
 
-  // Keep creation functional but do not add another visible "文件夹/Folders" label.
-  const createFolder = host.querySelector('.manager-folder-create');
+  if (uncategorizedOption) {
+    if (uncategorizedOption.textContent !== labels.uncategorized) {
+      uncategorizedOption.textContent = labels.uncategorized;
+    }
+    uncategorizedOption.title = labels.uncategorized;
+    uncategorizedOption.setAttribute('aria-label', labels.uncategorized);
+  }
+
+  const createFolder = host.querySelector(':scope > .manager-folder-create');
   if (createFolder) {
     if (createFolder.textContent !== '+') createFolder.textContent = '+';
-    if (createFolder.title !== labels.newFolder) createFolder.title = labels.newFolder;
-    if (createFolder.getAttribute('aria-label') !== labels.newFolder) {
-      createFolder.setAttribute('aria-label', labels.newFolder);
-    }
+    createFolder.title = labels.newFolder;
+    createFolder.setAttribute('aria-label', labels.newFolder);
   }
-
-  const allIsActive = Boolean(allFolders?.classList.contains('is-active'));
-  allTab.classList.toggle('is-active', allIsActive);
-  allTab.setAttribute('aria-selected', String(allIsActive));
-  if (allTab.textContent !== labels.all) allTab.textContent = labels.all;
 }
 
 function forceFolderNavigationMode() {
@@ -255,23 +269,17 @@ function forceFolderNavigationMode() {
 }
 
 function wireFolderPresentation() {
-  const allTab = visibleAllTab();
   const folderTab = hiddenFolderTab();
   const host = folderOptionsHost();
-  if (!allTab || !folderTab || !host) return;
-
-  // Keep the underlying controller in folder mode so folder chips are always available.
-  // The visible All control simply resets that folder filter to all prompts.
-  allTab.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    folderTab.click();
-    queueMicrotask(syncFolderPresentation);
-  }, true);
+  if (!folderTab || !host) return;
 
   const observer = new MutationObserver(() => queueMicrotask(syncFolderPresentation));
-  observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  observer.observe(host, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class'],
+  });
 
   forceFolderNavigationMode();
   setTimeout(forceFolderNavigationMode, 80);
