@@ -4,9 +4,6 @@
   <title>Open Prompt Manager</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="../manager.css" />
-  <link rel="stylesheet" href="../manager-workspaces.css" />
-  <link rel="stylesheet" href="../workspace-tabs-ui.css" />
-  <link rel="stylesheet" href="../fullpage-layout.css" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
@@ -22,28 +19,13 @@
     <section class="manager-workspace-bar manager-workspace-tabs-shell" aria-label="Workspace switcher">
       <div id="manager-workspace-tabs" class="manager-workspace-tabs" role="tablist" aria-label="Workspace choices"></div>
       <button type="button" id="manager-workspace-edit-toggle" aria-label="Edit" title="Edit" aria-pressed="false">✎</button>
-
-      <!-- Existing workspace controller stays hidden as the persistence/CRUD layer. -->
-      <div class="manager-workspace-legacy-controls" hidden>
-        <select id="manager-workspace-select" aria-label="Workspace"></select>
-        <button type="button" id="manager-workspace-add" aria-label="New workspace" title="New workspace">+</button>
-        <button type="button" id="manager-workspace-rename" aria-label="Rename workspace" title="Rename workspace">✎</button>
-        <button type="button" id="manager-workspace-delete" aria-label="Delete workspace" title="Delete workspace">×</button>
-      </div>
     </section>
 
     <div class="main-layout manager-main-layout">
       <aside class="sidebar-panel manager-navigation">
-        <!-- Hidden category controls keep the existing folder controller alive. -->
-        <nav class="manager-category-bar manager-category-legacy" aria-hidden="true" hidden>
-          <button type="button" class="manager-category-tab is-active" data-manager-category="all" data-label-en="All" data-label-zh="全部" role="tab" aria-selected="true">All</button>
-          <button type="button" class="manager-category-tab" data-manager-category="folders" data-label-en="Folders" data-label-zh="文件夹" role="tab" aria-selected="false">Folders</button>
-        </nav>
+        <div id="manager-category-options" class="manager-category-options manager-folder-options" aria-label="Folder filters"></div>
 
-        <!-- All / Uncategorized / folders / New folder live on one single row. -->
-        <div id="manager-category-options" class="manager-category-options manager-folder-options" hidden aria-label="Folder filters"></div>
-
-        <!-- The composer starts here for compatibility; expanded mode moves the form to the editor pane. -->
+        <!-- The legacy controller still owns prompt CRUD and moves this form into the editor pane in expanded mode. -->
         <div class="sidebar-top-slot" hidden>
           <div class="sidebar-action-bar" id="sidebar-action-bar"></div>
           <div class="sidebar-composer" id="sidebar-composer">
@@ -76,7 +58,6 @@
               </div>
             </div>
 
-            <!-- Search and New Prompt share one row. -->
             <div id="prompt-list-controls" class="prompt-list-controls manager-nav-controls manager-search-create-row">
               <input type="search" id="prompt-search-input" class="prompt-search-input" data-i18n-placeholder="prompt.search" placeholder="Type to search" autocomplete="off" />
               <button type="button" id="create-prompt-btn" class="manager-new-prompt manager-new-prompt-inline" data-i18n-title="prompt.create" title="Create Prompt" aria-label="Create Prompt">
@@ -96,6 +77,5 @@
 
   <script type="module" src="sidepanel.js"></script>
   <script type="module" src="../fullpage-manager.js"></script>
-  <script type="module" src="../workspace-tabs-ui.js"></script>
 </body>
 </html>

@@ -1,121 +1,216 @@
-/* Full-page manager shell and settings extensions. */
+/* Canonical full-page manager layout + settings extensions.
+   sidepanel/styles.css supplies shared controls; this file owns all full-page layout. */
 
 body.manager-page,
 body.is-expanded-tab.manager-page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100vw;
+  max-width: none;
   height: 100dvh;
-  min-height: 0;
+  min-height: 100dvh;
   margin: 0;
   padding: 12px 16px 16px;
+  gap: 0;
   overflow: hidden;
   box-sizing: border-box;
   background: var(--light-bg);
 }
 
-body.manager-page .manager-main-layout {
-  display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  align-items: stretch;
-  gap: 16px;
+body.manager-page .manager-page-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  align-self: stretch;
   width: 100%;
+  max-width: none;
   height: 100%;
   min-height: 0;
   margin: 0;
+  gap: 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Page-level workspace switcher. */
+body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(54, 116, 181, 0.14);
+  border-radius: 10px;
+  background: var(--light-bg);
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+body.manager-page .manager-workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+body.manager-page .manager-workspace-tabs::-webkit-scrollbar,
+body.manager-page .manager-folder-options::-webkit-scrollbar {
+  display: none;
+}
+
+body.manager-page .manager-workspace-tab-wrap {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  overflow: hidden;
+  background: transparent;
+}
+
+body.manager-page .manager-workspace-tab-wrap.is-active {
+  border-color: rgba(54, 116, 181, 0.28);
+  background: rgba(54, 116, 181, 0.09);
+}
+
+body.manager-page .manager-workspace-tab {
+  min-width: 0;
+  max-width: 180px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: #5f6f82;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+body.manager-page .manager-workspace-tab:hover,
+body.manager-page .manager-workspace-tab-wrap.is-active .manager-workspace-tab {
+  color: var(--primary);
+}
+
+body.manager-page .manager-workspace-inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid rgba(54, 116, 181, 0.13);
+  background: transparent;
+  color: #718096;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+body.manager-page .manager-workspace-inline-action:hover {
+  color: var(--primary);
+  background: rgba(54, 116, 181, 0.08);
+}
+
+body.manager-page .manager-workspace-inline-action.is-danger:hover {
+  color: #c53030;
+  background: rgba(197, 48, 48, 0.08);
+}
+
+body.manager-page .manager-workspace-create-inline,
+body.manager-page #manager-workspace-edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(54, 116, 181, 0.22);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+body.manager-page .manager-workspace-create-inline:hover,
+body.manager-page #manager-workspace-edit-toggle:hover,
+body.manager-page #manager-workspace-edit-toggle.is-editing {
+  background: rgba(54, 116, 181, 0.09);
+  border-color: rgba(54, 116, 181, 0.40);
+}
+
+/* Main two-pane manager. Reset legacy grid-area from the old expanded sidepanel. */
+body.manager-page .manager-main-layout,
+body.is-expanded-tab.manager-page .manager-main-layout {
+  grid-area: auto;
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  flex: 1 1 0;
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  gap: 16px;
   overflow: hidden;
   box-sizing: border-box;
 }
 
 body.manager-page .manager-navigation,
-body.manager-page .manager-editor {
-  box-sizing: border-box;
-}
-
-body.manager-page .manager-navigation {
+body.is-expanded-tab.manager-page .manager-navigation {
+  grid-column: 1;
+  grid-row: 1;
   position: relative;
   display: flex;
   flex-direction: column;
-  width: auto;
+  width: 100%;
   min-width: 0;
   max-width: none;
   height: 100%;
   min-height: 0;
   max-height: none;
+  margin: 0;
   padding: 0;
   overflow: hidden;
   background: var(--light-bg);
   border: 1px solid rgba(54, 116, 181, 0.14);
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  box-sizing: border-box;
 }
 
-body.manager-page .manager-category-bar {
-  display: flex;
-  align-items: end;
-  gap: 4px;
-  min-height: 42px;
-  padding: 8px 10px 0;
-  flex: 0 0 auto;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border-bottom: 1px solid rgba(54, 116, 181, 0.12);
-  scrollbar-width: none;
-}
-
-body.manager-page .manager-category-bar::-webkit-scrollbar,
-body.manager-page .manager-category-options::-webkit-scrollbar {
-  display: none;
-}
-
-body.manager-page .manager-category-tab {
-  position: relative;
-  flex: 0 0 auto;
-  min-width: 54px;
-  height: 34px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 8px 8px 0 0;
-  background: transparent;
-  color: #718096;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-body.manager-page .manager-category-tab:hover {
-  color: var(--primary);
-  background: rgba(54, 116, 181, 0.06);
-}
-
-body.manager-page .manager-category-tab.is-active {
-  color: var(--primary);
-  background: rgba(54, 116, 181, 0.08);
-}
-
-body.manager-page .manager-category-tab.is-active::after {
-  content: '';
-  position: absolute;
-  left: 9px;
-  right: 9px;
-  bottom: 0;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--primary);
-}
-
-body.manager-page .manager-category-options {
+/* All / Uncategorized / folder chips / New folder share a single row. */
+body.manager-page .manager-folder-options,
+body.manager-page .manager-folder-options:not([hidden]) {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 39px;
-  padding: 7px 12px 5px;
+  min-height: 44px;
+  padding: 8px 14px;
   flex: 0 0 auto;
   overflow-x: auto;
   overflow-y: hidden;
-  border-bottom: 1px solid rgba(54, 116, 181, 0.08);
+  border-bottom: 1px solid rgba(54, 116, 181, 0.10);
+  box-sizing: border-box;
   scrollbar-width: none;
-}
-
-body.manager-page .manager-category-options[hidden] {
-  display: none;
 }
 
 body.manager-page .manager-category-option {
@@ -140,37 +235,83 @@ body.manager-page .manager-category-option.is-active {
   background: rgba(54, 116, 181, 0.08);
 }
 
-body.manager-page .manager-nav-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 16px;
-  flex: 0 0 auto;
-}
-
-body.manager-page .manager-nav-title {
-  color: var(--primary);
-  font-size: 16px;
-  font-weight: 700;
-}
-
-body.manager-page .manager-new-prompt {
+body.manager-page .manager-folder-group {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: var(--primary);
+  flex: 0 0 auto;
+  border: 1px solid rgba(54, 116, 181, 0.18);
+  border-radius: 999px;
+  overflow: hidden;
+  background: transparent;
+}
+
+body.manager-page .manager-folder-group.is-active {
+  border-color: rgba(54, 116, 181, 0.44);
+  background: rgba(54, 116, 181, 0.08);
+}
+
+body.manager-page .manager-folder-select-btn {
+  max-width: 150px;
+  border: 0;
+  background: transparent;
+  color: #5f6f82;
+  padding: 5px 8px 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
 
-body.manager-page .manager-new-prompt img {
-  width: 18px;
-  height: 18px;
+body.manager-page .manager-folder-group.is-active .manager-folder-select-btn,
+body.manager-page .manager-folder-select-btn:hover {
+  color: var(--primary);
+}
+
+body.manager-page .manager-folder-mini {
+  width: 24px;
+  height: 26px;
+  border: 0;
+  border-left: 1px solid rgba(54, 116, 181, 0.12);
+  background: transparent;
+  color: #718096;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+body.manager-page .manager-folder-mini:hover {
+  color: var(--primary);
+  background: rgba(54, 116, 181, 0.08);
+}
+
+body.manager-page .manager-folder-mini-danger:hover {
+  color: #c53030;
+  background: rgba(197, 48, 48, 0.08);
+}
+
+body.manager-page .manager-folder-create {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 2px;
+  border: 1px dashed rgba(54, 116, 181, 0.38);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+body.manager-page .manager-folder-create:hover {
+  background: rgba(54, 116, 181, 0.08);
 }
 
 body.manager-page .manager-nav-body {
@@ -181,21 +322,52 @@ body.manager-page .manager-nav-body {
 }
 
 body.manager-page .manager-nav-body .prompts-section {
-  height: 100%;
-  min-height: 0;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  margin-top: 0;
   overflow: hidden;
 }
 
-body.manager-page .manager-nav-controls {
-  flex: 0 0 auto;
+body.manager-page .manager-search-create-row,
+body.manager-page .manager-search-create-row[hidden] {
   display: flex !important;
-  margin-bottom: 10px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex: 0 0 auto;
+  margin: 10px 0;
 }
 
-body.manager-page .manager-nav-controls[hidden] {
-  display: flex !important;
+body.manager-page .manager-search-create-row .prompt-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+body.manager-page .manager-new-prompt-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  cursor: pointer;
+}
+
+body.manager-page .manager-new-prompt-inline img {
+  width: 18px;
+  height: 18px;
+}
+
+body.manager-page .manager-search-create-row #prompt-tags-filter[hidden] {
+  display: none !important;
 }
 
 body.manager-page .manager-prompt-list {
@@ -203,6 +375,7 @@ body.manager-page .manager-prompt-list {
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  margin: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-bottom: 10px;
@@ -223,51 +396,8 @@ body.manager-page #prompt-list li.is-selected {
   border-color: rgba(54, 116, 181, 0.35);
 }
 
-body.manager-page #prompt-list li.manager-category-hidden {
+body.manager-page #prompt-list li.manager-workspace-hidden {
   display: none !important;
-}
-
-body.manager-page .manager-editor,
-body.is-expanded-tab.manager-page .manager-editor {
-  display: flex !important;
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  max-height: none;
-  padding: 16px;
-  overflow: hidden;
-  background: var(--light-bg);
-  border: 1px solid rgba(54, 116, 181, 0.14);
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-}
-
-body.manager-page .manager-editor #prompt-form {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-body.manager-page .manager-editor #prompt-title,
-body.manager-page .manager-editor #prompt-tags-host,
-body.manager-page .manager-editor .form-actions {
-  flex: 0 0 auto;
-}
-
-body.manager-page .manager-editor #prompt-content {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-body.manager-page .manager-editor .form-actions {
-  margin-top: 0;
-  padding-top: 10px;
-  background: var(--light-bg);
 }
 
 body.manager-page .manager-navigation > footer.footer {
@@ -301,6 +431,78 @@ body.manager-page .manager-settings-link:hover {
 body.manager-page .manager-settings-link .footer-md-icon {
   width: 20px;
   height: 20px;
+}
+
+/* Editor pane fills all space below the workspace bar. */
+body.manager-page .manager-editor,
+body.is-expanded-tab.manager-page .manager-editor {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex !important;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  overflow: hidden;
+  background: var(--light-bg);
+  border: 1px solid rgba(54, 116, 181, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  box-sizing: border-box;
+}
+
+body.manager-page .manager-editor #prompt-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+body.manager-page .manager-editor #prompt-title,
+body.manager-page .manager-editor #prompt-tags-host,
+body.manager-page .manager-editor .manager-prompt-folder-field,
+body.manager-page .manager-editor .form-actions {
+  flex: 0 0 auto;
+}
+
+body.manager-page .manager-editor #prompt-content {
+  flex: 1 1 0;
+  width: 100%;
+  height: 0;
+  min-height: 0;
+  max-height: none;
+  margin-bottom: 4px;
+  overflow: auto;
+  resize: none;
+  box-sizing: border-box;
+}
+
+body.manager-page .manager-prompt-folder-field.manager-prompt-folder-field-label-free {
+  display: block;
+  margin-bottom: 4px;
+}
+
+body.manager-page .manager-prompt-folder-select {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  margin: 0 !important;
+  padding: 6px 8px;
+}
+
+body.manager-page .manager-editor .form-actions {
+  margin-top: 0;
+  padding-top: 10px;
+  background: var(--light-bg);
 }
 
 /* Settings: assistant management and onboarding entry. */
@@ -372,7 +574,7 @@ body.manager-page .manager-settings-link .footer-md-icon {
   border-radius: 50%;
   background: #fff;
   transition: transform 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .settings-assistant-card.is-enabled .settings-assistant-toggle {
@@ -406,34 +608,43 @@ body.manager-page .manager-settings-link .footer-md-icon {
 }
 
 @media (prefers-color-scheme: dark) {
+  body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell,
   body.manager-page .manager-navigation,
-  body.manager-page .manager-editor {
-    border-color: rgba(255,255,255,0.10);
+  body.manager-page .manager-editor,
+  body.manager-page .manager-folder-options {
+    border-color: rgba(255, 255, 255, 0.10);
   }
 
-  body.manager-page .manager-category-bar,
-  body.manager-page .manager-category-options {
-    border-color: rgba(255,255,255,0.08);
-  }
-
-  body.manager-page .manager-category-tab,
-  body.manager-page .manager-category-option {
-    color: #a0aec0;
-  }
-
-  body.manager-page .manager-category-tab.is-active,
-  body.manager-page .manager-category-option.is-active {
-    color: #90cdf4;
+  body.manager-page .manager-workspace-tab-wrap.is-active {
+    border-color: rgba(144, 205, 244, 0.28);
     background: rgba(54, 116, 181, 0.22);
   }
 
+  body.manager-page .manager-workspace-tab,
+  body.manager-page .manager-category-option,
+  body.manager-page .manager-folder-select-btn,
+  body.manager-page .manager-folder-mini {
+    color: #a0aec0;
+  }
+
+  body.manager-page .manager-workspace-tab-wrap.is-active .manager-workspace-tab,
+  body.manager-page .manager-category-option.is-active,
+  body.manager-page .manager-folder-group.is-active .manager-folder-select-btn {
+    color: #90cdf4;
+  }
+
+  body.manager-page .manager-folder-group {
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+
+  body.manager-page .manager-folder-group.is-active,
   body.manager-page #prompt-list li.is-selected,
   .settings-assistant-card.is-enabled {
     background: rgba(54, 116, 181, 0.22);
   }
 
   .settings-assistant-card {
-    border-color: rgba(255,255,255,0.14);
+    border-color: rgba(255, 255, 255, 0.14);
   }
 }
 
@@ -445,18 +656,30 @@ body.manager-page .manager-settings-link .footer-md-icon {
     overflow: auto;
   }
 
-  body.manager-page .manager-main-layout {
-    grid-template-columns: 1fr;
+  body.manager-page .manager-page-shell {
+    height: auto;
+    min-height: calc(100dvh - 28px);
+    overflow: visible;
+  }
+
+  body.manager-page .manager-main-layout,
+  body.is-expanded-tab.manager-page .manager-main-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(360px, 44dvh) minmax(480px, 55dvh);
+    flex: 0 0 auto;
     height: auto;
     overflow: visible;
   }
 
-  body.manager-page .manager-navigation {
-    height: min(44dvh, 460px);
+  body.manager-page .manager-navigation,
+  body.is-expanded-tab.manager-page .manager-navigation {
+    grid-column: 1;
+    grid-row: 1;
   }
 
-  body.manager-page .manager-editor {
-    min-height: 55dvh;
-    height: 55dvh;
+  body.manager-page .manager-editor,
+  body.is-expanded-tab.manager-page .manager-editor {
+    grid-column: 1;
+    grid-row: 2;
   }
 }
