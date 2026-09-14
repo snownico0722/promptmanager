@@ -1,42 +1,33 @@
 <!DOCTYPE html>
 <html data-i18n-pending>
-
 <head>
   <title>Open Prompt Manager</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="../manager.css" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     html[data-i18n-pending] body { visibility: hidden; animation: opm-i18n-fallback 0s 4s forwards; }
     @keyframes opm-i18n-fallback { to { visibility: visible; } }
-    /* Community publishing has been removed. Keep stale stored preferences from surfacing an action. */
     .spm-prompt-action-btn[data-opm-action="share"] { display: none !important; }
   </style>
   <script src="../i18n.js"></script>
 </head>
 
 <body>
-  <div class="title">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="../icons/icon-main-s.png">
-      <img class="header-icon" src="../icons/icon-main-s color.png" data-i18n-alt="common.extensionIcon" alt="Extension Icon" style="width: 22px; height: 22px" />
-    </picture>
-    <h2>Open Prompt Manager</h2>
-    <div class="title-actions">
-      <button type="button" id="close-expanded-view" class="header-close-btn" data-i18n-aria-label="common.close" aria-label="Close" data-i18n-title="common.close" title="Close">&times;</button>
-    </div>
-  </div>
+  <div class="main-layout manager-main-layout">
+    <aside class="sidebar-panel manager-navigation">
+      <div class="manager-nav-header">
+        <div class="manager-nav-title" data-i18n="prompt.list">Prompt list</div>
+        <button type="button" id="create-prompt-btn" class="manager-new-prompt" data-i18n-title="prompt.create" title="Create Prompt" aria-label="Create Prompt">
+          <img src="../icons/add-icon.png" alt="" aria-hidden="true" />
+        </button>
+      </div>
 
-  <div class="main-layout">
-    <aside class="sidebar-panel">
-      <div class="sidebar-top-slot">
-        <div class="sidebar-action-bar" id="sidebar-action-bar">
-          <button type="button" id="create-prompt-btn" class="sidebar-action-btn sidebar-action-btn-primary">
-            <img src="../icons/add-icon.png" alt="" aria-hidden="true" class="sidebar-action-btn-icon" />
-            <span data-i18n="prompt.create">Create Prompt</span>
-          </button>
-        </div>
-        <div class="sidebar-composer" id="sidebar-composer" hidden>
+      <!-- The composer starts here for compatibility; expanded mode moves the form to the editor pane. -->
+      <div class="sidebar-top-slot" hidden>
+        <div class="sidebar-action-bar" id="sidebar-action-bar"></div>
+        <div class="sidebar-composer" id="sidebar-composer">
           <form id="prompt-form">
             <input type="hidden" id="prompt-uuid" />
             <input type="text" id="prompt-title" class="opm-input-field" data-i18n-placeholder="prompt.title" placeholder="Prompt Title" required />
@@ -53,13 +44,9 @@
         </div>
       </div>
 
-      <div class="prompts-container">
+      <div class="prompts-container manager-nav-body">
         <div class="prompts-section">
-          <div
-            class="opm-form-container opm-variable-input-form sidebar-variable-input"
-            id="sidebar-variable-input"
-            hidden
-          >
+          <div class="opm-form-container opm-variable-input-form sidebar-variable-input" id="sidebar-variable-input" hidden>
             <div id="spm-variable-fields" class="opm-variable-fields"></div>
             <div class="opm-variable-actions">
               <button type="button" class="opm-button" id="spm-variable-submit" data-i18n="prompt.submitVariables">Submit</button>
@@ -67,62 +54,25 @@
             </div>
           </div>
 
-          <div id="permissions-shortcut" class="shortcut-container" style="display: none">
-            <p style="margin: 8px 0" data-i18n="sidepanel.getStarted">Add your supported Assistants below to get started.</p>
-          </div>
-
-          <div id="prompt-list-controls" class="prompt-list-controls" hidden>
-            <div id="prompt-tags-filter" class="prompt-tags-filter" hidden></div>
+          <div id="prompt-list-controls" class="prompt-list-controls manager-nav-controls">
             <input type="search" id="prompt-search-input" class="prompt-search-input" data-i18n-placeholder="prompt.search" placeholder="Type to search" autocomplete="off" />
+            <div id="prompt-tags-filter" class="prompt-tags-filter" hidden></div>
           </div>
 
-          <ul id="prompt-list"></ul>
+          <ul id="prompt-list" class="manager-prompt-list"></ul>
 
-          <div id="empty-state" class="shortcut-container" style="display: none">
-            <h3 data-i18n="sidepanel.shortcutsTitle">Keyboard Navigation &amp; Shortcuts</h3>
-            <p data-i18n="sidepanel.shortcutsHelp">These can be used on any page supported by the extension.</p>
-            <p style="display: flex; align-items: center; margin: 8px 0">
-              <span style="background-color: var(--primary); color: white; padding: 4px 8px; border-radius: 4px; margin-right: 10px;" data-i18n="sidepanel.hoverClick">Hover/Click</span>
-              <span data-i18n="sidepanel.openPromptButtons">Open prompt list buttons</span>
-            </p>
-            <p style="display: flex; align-items: center; margin: 8px 0">
-              <span style="background-color: var(--primary); color: white; padding: 4px 8px; border-radius: 4px; margin-right: 10px;" data-i18n="sidepanel.customShortcut">Custom shortcut</span>
-              <span data-i18n="sidepanel.openClosePromptList">Open / close prompt list (set in Settings)</span>
-            </p>
-            <p style="display: flex; align-items: center; margin: 8px 0">
-              <span style="background-color: var(--primary); color: white; padding: 4px 8px; border-radius: 4px; margin-right: 10px;">↑↓</span>
-              <span data-i18n="sidepanel.navigatePromptList">Navigate the prompt list</span>
-            </p>
-            <p style="display: flex; align-items: center; margin: 8px 0">
-              <span style="background-color: var(--primary); color: white; padding: 4px 8px; border-radius: 4px; margin-right: 10px;">Enter</span>
-              <span data-i18n="sidepanel.selectPrompt">Select a prompt</span>
-            </p>
-            <p style="display: flex; align-items: center; margin: 8px 0">
-              <span style="background-color: var(--primary); color: white; padding: 4px 8px; border-radius: 4px; margin-right: 10px;">Esc</span>
-              <span data-i18n="sidepanel.closeManager">Close the prompt manager</span>
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div class="sidepanel-bottom-dock">
-        <div id="llms-section" class="llms-section">
-          <h3 class="llms-heading" data-i18n="sidepanel.assistants">Assistants</h3>
-          <div class="llms-group">
-            <div id="llms-activated" class="llms-pills" aria-live="polite"></div>
-          </div>
-          <div class="llms-group">
-            <div class="llms-subheading" id="llms-available-toggle" role="button" tabindex="0" aria-controls="llms-available" aria-expanded="false" data-i18n="sidepanel.addMore">Add more</div>
-            <div id="llms-available" class="llms-pills collapsible" aria-live="polite"></div>
+          <div id="empty-state" class="manager-empty-state" style="display: none">
+            <p data-i18n="prompt.noPrompts">No prompts found</p>
+            <button type="button" id="empty-create-prompt-btn" class="manager-empty-create" data-i18n="prompt.create">Create Prompt</button>
           </div>
         </div>
       </div>
     </aside>
 
-    <div class="composer-panel" id="composer-panel" hidden></div>
+    <main class="composer-panel manager-editor" id="composer-panel" hidden></main>
   </div>
 
   <script type="module" src="sidepanel.js"></script>
+  <script type="module" src="../fullpage-manager.js"></script>
 </body>
-
 </html>
