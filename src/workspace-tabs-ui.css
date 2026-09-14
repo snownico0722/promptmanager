@@ -1,12 +1,35 @@
-/* Refinement layer for the full-page manager workspace/folder navigation. */
+/* Full-page hierarchy refinement: workspace is global; folders/search belong to the sidebar. */
 
+body.manager-page .manager-page-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+body.manager-page .manager-page-shell > .manager-main-layout {
+  flex: 1 1 auto;
+  height: auto !important;
+  min-height: 0;
+}
+
+/* Workspace is a separate, page-level switcher above both panes. */
 body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
+  width: 100%;
   min-width: 0;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(54, 116, 181, 0.12);
+  padding: 9px 10px;
+  border: 1px solid rgba(54, 116, 181, 0.14);
+  border-radius: 10px;
+  background: var(--light-bg);
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 body.manager-page .manager-workspace-legacy-controls[hidden] {
@@ -24,7 +47,8 @@ body.manager-page .manager-workspace-tabs {
   scrollbar-width: none;
 }
 
-body.manager-page .manager-workspace-tabs::-webkit-scrollbar {
+body.manager-page .manager-workspace-tabs::-webkit-scrollbar,
+body.manager-page .manager-folder-options::-webkit-scrollbar {
   display: none;
 }
 
@@ -45,9 +69,9 @@ body.manager-page .manager-workspace-tab-wrap.is-active {
 
 body.manager-page .manager-workspace-tab {
   min-width: 0;
-  max-width: 150px;
+  max-width: 180px;
   height: 32px;
-  padding: 0 11px;
+  padding: 0 12px;
   border: 0;
   background: transparent;
   color: #5f6f82;
@@ -114,23 +138,88 @@ body.manager-page #manager-workspace-edit-toggle.is-editing {
   border-color: rgba(54, 116, 181, 0.40);
 }
 
-/* Only the "All" selector remains visible. Folders themselves are shown directly below it. */
-body.manager-page .manager-category-tab[data-manager-category="folders"] {
+/* No separate All/Folder hierarchy: all folder scopes share exactly one row. */
+body.manager-page .manager-category-legacy {
   display: none !important;
 }
 
-body.manager-page .manager-category-bar {
-  min-height: 38px;
-  padding-top: 5px;
+body.manager-page .manager-folder-options:not([hidden]) {
+  display: flex !important;
 }
 
-/* The existing "All folders" chip duplicates the visible "All" control. */
-body.manager-page .manager-hidden-all-folders {
+body.manager-page .manager-folder-options {
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-bottom: 1px solid rgba(54, 116, 181, 0.10);
+  box-sizing: border-box;
+  scrollbar-width: none;
+}
+
+body.manager-page .manager-folder-options > .manager-category-option {
+  order: 0;
+}
+
+body.manager-page .manager-folder-options > .manager-folder-group {
+  order: 1;
+}
+
+body.manager-page .manager-folder-options > .manager-folder-create {
+  order: 2;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: 2px;
+  border-style: dashed;
+  border-radius: 999px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Search and New Prompt are one row; there is no Prompt List heading. */
+body.manager-page .manager-search-create-row,
+body.manager-page .manager-search-create-row[hidden] {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 10px 0;
+}
+
+body.manager-page .manager-search-create-row .prompt-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+body.manager-page .manager-new-prompt-inline {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+}
+
+body.manager-page .manager-search-create-row #prompt-tags-filter[hidden] {
   display: none !important;
+}
+
+/* The editor's folder select is self-explanatory; no visible "Folder" label. */
+body.manager-page .manager-prompt-folder-field.manager-prompt-folder-field-label-free {
+  display: block !important;
+  grid-template-columns: 1fr !important;
+}
+
+body.manager-page .manager-prompt-folder-field-label-free .manager-prompt-folder-select {
+  width: 100% !important;
 }
 
 @media (prefers-color-scheme: dark) {
-  body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell {
+  body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell,
+  body.manager-page .manager-folder-options {
     border-color: rgba(255, 255, 255, 0.08);
   }
 
@@ -150,5 +239,16 @@ body.manager-page .manager-hidden-all-folders {
   body.manager-page .manager-workspace-inline-action {
     border-left-color: rgba(255, 255, 255, 0.10);
     color: #a0aec0;
+  }
+}
+
+@media (max-width: 780px) {
+  body.manager-page .manager-page-shell {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  body.manager-page .manager-page-shell > .manager-main-layout {
+    flex: 0 0 auto;
   }
 }

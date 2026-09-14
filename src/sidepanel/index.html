@@ -17,80 +17,80 @@
 </head>
 
 <body>
-  <div class="main-layout manager-main-layout">
-    <aside class="sidebar-panel manager-navigation">
-      <section class="manager-workspace-bar manager-workspace-tabs-shell" aria-label="Workspace switcher">
-        <div id="manager-workspace-tabs" class="manager-workspace-tabs" role="tablist" aria-label="Workspace choices"></div>
-        <button type="button" id="manager-workspace-edit-toggle" aria-label="Edit" title="Edit" aria-pressed="false">✎</button>
+  <div class="manager-page-shell">
+    <section class="manager-workspace-bar manager-workspace-tabs-shell" aria-label="Workspace switcher">
+      <div id="manager-workspace-tabs" class="manager-workspace-tabs" role="tablist" aria-label="Workspace choices"></div>
+      <button type="button" id="manager-workspace-edit-toggle" aria-label="Edit" title="Edit" aria-pressed="false">✎</button>
 
-        <!-- Keep the existing workspace controller as an internal compatibility layer. -->
-        <div class="manager-workspace-legacy-controls" hidden>
-          <select id="manager-workspace-select" aria-label="Workspace"></select>
-          <button type="button" id="manager-workspace-add" aria-label="New workspace" title="New workspace">+</button>
-          <button type="button" id="manager-workspace-rename" aria-label="Rename workspace" title="Rename workspace">✎</button>
-          <button type="button" id="manager-workspace-delete" aria-label="Delete workspace" title="Delete workspace">×</button>
-        </div>
-      </section>
-
-      <nav class="manager-category-bar" aria-label="Prompt navigation" role="tablist">
-        <button type="button" class="manager-category-tab is-active" data-manager-category="all" data-label-en="All" data-label-zh="全部" role="tab" aria-selected="true">All</button>
-        <!-- Kept hidden so the existing folder controller can continue to drive real folder CRUD/filtering. -->
-        <button type="button" class="manager-category-tab" data-manager-category="folders" data-label-en="Folders" data-label-zh="文件夹" role="tab" aria-selected="false" hidden>Folders</button>
-      </nav>
-      <div id="manager-category-options" class="manager-category-options manager-folder-options" hidden aria-label="Folder filters"></div>
-
-      <div class="manager-nav-header">
-        <div class="manager-nav-title" data-i18n="prompt.list">Prompt list</div>
-        <button type="button" id="create-prompt-btn" class="manager-new-prompt" data-i18n-title="prompt.create" title="Create Prompt" aria-label="Create Prompt">
-          <img src="../icons/add-icon.png" alt="" aria-hidden="true" />
-        </button>
+      <!-- Existing workspace controller stays hidden as the persistence/CRUD layer. -->
+      <div class="manager-workspace-legacy-controls" hidden>
+        <select id="manager-workspace-select" aria-label="Workspace"></select>
+        <button type="button" id="manager-workspace-add" aria-label="New workspace" title="New workspace">+</button>
+        <button type="button" id="manager-workspace-rename" aria-label="Rename workspace" title="Rename workspace">✎</button>
+        <button type="button" id="manager-workspace-delete" aria-label="Delete workspace" title="Delete workspace">×</button>
       </div>
+    </section>
 
-      <!-- The composer starts here for compatibility; expanded mode moves the form to the editor pane. -->
-      <div class="sidebar-top-slot" hidden>
-        <div class="sidebar-action-bar" id="sidebar-action-bar"></div>
-        <div class="sidebar-composer" id="sidebar-composer">
-          <form id="prompt-form">
-            <input type="hidden" id="prompt-uuid" />
-            <input type="text" id="prompt-title" class="opm-input-field" data-i18n-placeholder="prompt.title" placeholder="Prompt Title" required />
-            <textarea id="prompt-content" class="opm-textarea-field" data-i18n-placeholder="prompt.contentPlaceholder" placeholder="Enter your prompt here - Use #variablename# for dynamic values." required></textarea>
-            <div class="manager-prompt-folder-field">
-              <label id="manager-prompt-folder-label" for="manager-prompt-folder-select">Folder</label>
-              <select id="manager-prompt-folder-select" class="opm-input-field manager-prompt-folder-select"></select>
+    <div class="main-layout manager-main-layout">
+      <aside class="sidebar-panel manager-navigation">
+        <!-- Hidden category controls keep the existing folder controller alive. -->
+        <nav class="manager-category-bar manager-category-legacy" aria-hidden="true" hidden>
+          <button type="button" class="manager-category-tab is-active" data-manager-category="all" data-label-en="All" data-label-zh="全部" role="tab" aria-selected="true">All</button>
+          <button type="button" class="manager-category-tab" data-manager-category="folders" data-label-en="Folders" data-label-zh="文件夹" role="tab" aria-selected="false">Folders</button>
+        </nav>
+
+        <!-- All / Uncategorized / folders / New folder live on one single row. -->
+        <div id="manager-category-options" class="manager-category-options manager-folder-options" hidden aria-label="Folder filters"></div>
+
+        <!-- The composer starts here for compatibility; expanded mode moves the form to the editor pane. -->
+        <div class="sidebar-top-slot" hidden>
+          <div class="sidebar-action-bar" id="sidebar-action-bar"></div>
+          <div class="sidebar-composer" id="sidebar-composer">
+            <form id="prompt-form">
+              <input type="hidden" id="prompt-uuid" />
+              <input type="text" id="prompt-title" class="opm-input-field" data-i18n-placeholder="prompt.title" placeholder="Prompt Title" required />
+              <textarea id="prompt-content" class="opm-textarea-field" data-i18n-placeholder="prompt.contentPlaceholder" placeholder="Enter your prompt here - Use #variablename# for dynamic values." required></textarea>
+              <div class="manager-prompt-folder-field manager-prompt-folder-field-label-free">
+                <select id="manager-prompt-folder-select" class="opm-input-field manager-prompt-folder-select" aria-label="Folder"></select>
+              </div>
+              <div id="prompt-tags-host" class="prompt-tags-host" hidden></div>
+              <div class="form-actions">
+                <button class="main" type="submit" id="submit-button">
+                  <img src="../icons/add-icon.png" data-i18n-alt="common.add" alt="Add" style="margin-right: 5px" />
+                  <span data-i18n="prompt.save">Save prompt</span>
+                </button>
+                <button type="button" id="cancel-edit-button" data-i18n="common.back">Back</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="prompts-container manager-nav-body">
+          <div class="prompts-section">
+            <div class="opm-form-container opm-variable-input-form sidebar-variable-input" id="sidebar-variable-input" hidden>
+              <div id="spm-variable-fields" class="opm-variable-fields"></div>
+              <div class="opm-variable-actions">
+                <button type="button" class="opm-button" id="spm-variable-submit" data-i18n="prompt.submitVariables">Submit</button>
+                <button type="button" class="opm-button" id="spm-variable-back" data-i18n="common.back">Back</button>
+              </div>
             </div>
-            <div id="prompt-tags-host" class="prompt-tags-host" hidden></div>
-            <div class="form-actions">
-              <button class="main" type="submit" id="submit-button">
-                <img src="../icons/add-icon.png" data-i18n-alt="common.add" alt="Add" style="margin-right: 5px" />
-                <span data-i18n="prompt.save">Save prompt</span>
+
+            <!-- Search and New Prompt share one row. -->
+            <div id="prompt-list-controls" class="prompt-list-controls manager-nav-controls manager-search-create-row">
+              <input type="search" id="prompt-search-input" class="prompt-search-input" data-i18n-placeholder="prompt.search" placeholder="Type to search" autocomplete="off" />
+              <button type="button" id="create-prompt-btn" class="manager-new-prompt manager-new-prompt-inline" data-i18n-title="prompt.create" title="Create Prompt" aria-label="Create Prompt">
+                <img src="../icons/add-icon.png" alt="" aria-hidden="true" />
               </button>
-              <button type="button" id="cancel-edit-button" data-i18n="common.back">Back</button>
+              <div id="prompt-tags-filter" class="prompt-tags-filter" hidden></div>
             </div>
-          </form>
-        </div>
-      </div>
 
-      <div class="prompts-container manager-nav-body">
-        <div class="prompts-section">
-          <div class="opm-form-container opm-variable-input-form sidebar-variable-input" id="sidebar-variable-input" hidden>
-            <div id="spm-variable-fields" class="opm-variable-fields"></div>
-            <div class="opm-variable-actions">
-              <button type="button" class="opm-button" id="spm-variable-submit" data-i18n="prompt.submitVariables">Submit</button>
-              <button type="button" class="opm-button" id="spm-variable-back" data-i18n="common.back">Back</button>
-            </div>
+            <ul id="prompt-list" class="manager-prompt-list"></ul>
           </div>
-
-          <div id="prompt-list-controls" class="prompt-list-controls manager-nav-controls">
-            <input type="search" id="prompt-search-input" class="prompt-search-input" data-i18n-placeholder="prompt.search" placeholder="Type to search" autocomplete="off" />
-            <div id="prompt-tags-filter" class="prompt-tags-filter" hidden></div>
-          </div>
-
-          <ul id="prompt-list" class="manager-prompt-list"></ul>
         </div>
-      </div>
-    </aside>
+      </aside>
 
-    <main class="composer-panel manager-editor" id="composer-panel" hidden></main>
+      <main class="composer-panel manager-editor" id="composer-panel" hidden></main>
+    </div>
   </div>
 
   <script type="module" src="sidepanel.js"></script>
