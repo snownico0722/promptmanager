@@ -1,21 +1,5 @@
 import './i18n.js';
 import { getProviderList } from './llm_providers.js';
-import { OPD_CATALOG_URL } from './opd/opdConstants.js';
-import {
-  initOpdCatalogAccess,
-  isAllowedOpdMessageOrigin,
-  hasOpdCatalogPermission,
-  syncOpdCatalogAccess,
-} from './opd/opdCatalogAccess.js';
-import { importCatalogPrompt } from './opd/opdImport.js';
-import { notifyPromptImported } from './opd/opdClient.js';
-import { isHandleAvailable, registerPublisherHandle, getPublisherStatus } from './opd/opdPublisher.js';
-import { shareLocalPrompt, unpublishLocalPrompt } from './opd/opdPublish.js';
-import {
-  getOrCreatePublishToken,
-  setPublishEnabled,
-  getPublishSettings,
-} from './opd/opdPublishToken.js';
 import { getPrompts, onPromptsChanged, savePrompt } from './storage/promptStorage.js';
 import { removePinnedForHostname } from './storage/pinnedInputStorage.js';
 import { removeLearnedForHostname } from './storage/learnedInputStorage.js';
@@ -29,7 +13,7 @@ import {
   OPM_DEV_FORCE_ONBOARDING_STORAGE_KEY,
 } from './devFlags.js';
 
-// COMMENT: Single source of truth for dynamically injected content-script bundles
+// COMMENT: Single source of truth for dynamically injected content-script bundles.
 const CONTENT_SCRIPT_FILES = [
   'content.boot.js',
   'i18n.js',
@@ -41,12 +25,9 @@ const CONTENT_SCRIPT_FILES = [
 ];
 
 const REGISTERED_CONTENT_SCRIPT_ID = 'opm-page-content';
-const OPD_EXCLUDE_MATCHES = [
-  `${OPD_CATALOG_URL}/*`,
-  'https://www.openpromptdatabase.com/*',
-];
+const MANAGER_URL = chrome.runtime.getURL('sidepanel/index.html?expanded=1');
 
-// COMMENT: Pre-injection lock — closes the race before content.js sets ready/init flags
+// COMMENT: Pre-injection lock — closes the race before content.js sets ready/init flags.
 const CONTENT_SCRIPT_INJECTION_FLAG = '__openPromptManagerInjected';
 const CONTENT_SCRIPT_INIT_FLAG = '__OPM_INITIALIZED__';
 const CONTENT_SCRIPT_READY_FLAG = '__OPM_CONTENT_READY__';
@@ -74,13 +55,13 @@ async function getGrantedOrigins() {
 }
 
 /**
- * COMMENT: Origins we may inject the in-page UI into (granted hosts, minus the catalog).
+ * COMMENT: Origins we may inject the in-page UI into.
  * @returns {Promise<string[]>}
  */
 async function getInjectableOrigins() {
   const granted = await getGrantedOrigins();
   if (granted.includes('<all_urls>')) return ['<all_urls>'];
-  return granted.filter((origin) => !/openpromptdatabase\.com/i.test(origin));
+  return granted;
 }
 
 /**
@@ -104,7 +85,6 @@ async function syncRegisteredContentScripts() {
   const script = {
     id: REGISTERED_CONTENT_SCRIPT_ID,
     matches,
-    excludeMatches: OPD_EXCLUDE_MATCHES,
     js: CONTENT_SCRIPT_FILES,
     runAt: 'document_idle',
     persistAcrossSessions: true,
@@ -346,7 +326,7 @@ async function runInsertPromptAction(tabId, prompt) {
 }
 
 /**
- * COMMENT: Resolve a prompt payload from the side panel message or storage.
+ * COMMENT: Resolve a prompt payload from the full-page manager message or storage.
  * @param {object} message
  * @returns {Promise<object|null>}
  */
@@ -402,231 +382,14 @@ async function withContentScriptsOnTab(tab, actionFn) {
   return run(updated);
 }
 
-// COMMENT: Track which browser windows have the extension side panel open.
-const sidePanelOpenWindows = new Set();
-
-/**
- * COMMENT: Tell permitted tabs in a window to hide or restore in-page launcher UI.
- * @param {boolean} open
- * @param {number} windowId
- */
-async function broadcastSidePanelState(open, windowId) {
-  if (!windowId) return;
-  let tabs = [];
-  try {
-    tabs = await chrome.tabs.query({ windowId });
-  } catch (_) {
-    return;
-  }
-
-  await Promise.all(tabs.map(async (tab) => {
-    if (!tab?.id || !tab.url || !/^https?:/i.test(tab.url)) return;
-    if (!(await tabHasScriptingPermission(tab.url))) return;
-    try {
-      await ensureContentScriptsForTab(tab.id, tab.url);
-      await chrome.tabs.sendMessage(tab.id, { type: 'OPM_SIDE_PANEL_STATE', open: Boolean(open) });
-    } catch (_) {
-      // Tab may not have a content-script listener yet — safe to ignore.
-    }
-  }));
-}
-
-/**
- * COMMENT: Long-lived port from sidepanel/index.html signals open/close for its window.
- */
-chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== 'opm-sidepanel') return;
-
-  let windowId = null;
-  port.onMessage.addListener((message) => {
-    if (message?.type !== 'OPM_SIDEPANEL_HELLO' || !message.windowId) return;
-    windowId = message.windowId;
-    sidePanelOpenWindows.add(windowId);
-    broadcastSidePanelState(true, windowId);
-  });
-
-  port.onDisconnect.addListener(() => {
-    if (windowId == null) return;
-    sidePanelOpenWindows.delete(windowId);
-    broadcastSidePanelState(false, windowId);
+// COMMENT: The toolbar now opens the complete manager in a normal browser tab.
+chrome.action.onClicked.addListener(() => {
+  chrome.tabs.create({ url: MANAGER_URL, active: true }).catch((error) => {
+    console.error('Failed to open full-page manager:', error);
   });
 });
-
-// COMMENT: Prefer native side-panel events when available (Chrome 138+).
-if (chrome.sidePanel?.onOpened) {
-  chrome.sidePanel.onOpened.addListener((info) => {
-    if (!info?.windowId) return;
-    sidePanelOpenWindows.add(info.windowId);
-    broadcastSidePanelState(true, info.windowId);
-  });
-}
-if (chrome.sidePanel?.onClosed) {
-  chrome.sidePanel.onClosed.addListener((info) => {
-    if (!info?.windowId) return;
-    sidePanelOpenWindows.delete(info.windowId);
-    broadcastSidePanelState(false, info.windowId);
-  });
-}
-
-/**
- * COMMENT: OPD catalog import — shared by content-script bridge and external webpage messages.
- * @param {object} message
- * @param {function} sendResponse
- */
-function handleOpdImportPrompt(message, sendResponse) {
-  (async () => {
-    try {
-      const result = await importCatalogPrompt(message.prompt);
-      // COMMENT: Count first-time imports only — re-import of an existing row is not a new import
-      if (result?.ok && result.status === 'imported' && message.prompt?.id) {
-        notifyPromptImported(message.prompt.id);
-      }
-      sendResponse(result);
-    } catch (error) {
-      sendResponse({ ok: false, error: error?.message || 'import_failed' });
-    }
-  })();
-}
-
-chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-  if (!isAllowedOpdMessageOrigin(sender?.url)) {
-    sendResponse({ ok: false, error: 'forbidden_origin' });
-    return true;
-  }
-
-  if (message?.type === 'OPD_PING') {
-    sendResponse({ ok: true, version: chrome.runtime.getManifest().version });
-    return true;
-  }
-
-  if (message?.type === 'OPD_IMPORT_PROMPT') {
-    handleOpdImportPrompt(message, sendResponse);
-    return true;
-  }
-
-  sendResponse({ ok: false, error: 'unknown_message' });
-  return true;
-});
-
-// COMMENT: Optional catalog host permission → inject bridge on OPD pages (dev / fallback).
-initOpdCatalogAccess();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === 'OPD_IMPORT_PROMPT') {
-    handleOpdImportPrompt(message, sendResponse);
-    return true;
-  }
-
-  if (message?.type === 'OPD_PUBLISH_STATUS') {
-    (async () => {
-      try {
-        const status = await getPublisherStatus({
-          forceSync: Boolean(message.forceSync),
-        });
-        sendResponse({ ok: true, ...status });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || 'status_failed' });
-      }
-    })();
-    return true;
-  }
-
-  if (message?.type === 'OPD_PUBLISH_ENABLE') {
-    (async () => {
-      try {
-        const enabled = Boolean(message.enabled);
-        if (enabled) {
-          // COMMENT: Host permission must be requested from the page click/change handler
-          await getOrCreatePublishToken();
-          await syncOpdCatalogAccess();
-        }
-        await setPublishEnabled(enabled);
-        sendResponse({ ok: true });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || 'enable_failed' });
-      }
-    })();
-    return true;
-  }
-
-  if (message?.type === 'OPD_HANDLE_AVAILABLE') {
-    (async () => {
-      try {
-        if (!(await hasOpdCatalogPermission())) {
-          sendResponse({ ok: false, available: false, error: 'permission_denied' });
-          return;
-        }
-        const result = await isHandleAvailable(message.handle || '');
-        if (!result.ok) {
-          sendResponse({ ok: false, available: false, error: result.error || 'check_failed' });
-          return;
-        }
-        sendResponse({ ok: true, ...result });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || 'check_failed' });
-      }
-    })();
-    return true;
-  }
-
-  if (message?.type === 'OPD_PUBLISH_REGISTER') {
-    (async () => {
-      try {
-        if (!(await hasOpdCatalogPermission())) {
-          sendResponse({ ok: false, error: 'permission_denied' });
-          return;
-        }
-        // COMMENT: Issue token for registration only — do not override the publish toggle
-        await getOrCreatePublishToken();
-        const result = await registerPublisherHandle(
-          message.username || '',
-          message.turnstileToken || ''
-        );
-        sendResponse(result);
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || 'register_failed' });
-      }
-    })();
-    return true;
-  }
-
-  if (message?.type === 'OPD_PUBLISH_PROMPT') {
-    (async () => {
-      try {
-        const settings = await getPublishSettings();
-        if (!settings.enabled) {
-          sendResponse({ ok: false, error: 'publish_disabled' });
-          return;
-        }
-        // COMMENT: Catalog host access is requested from the share click in the side panel
-        if (!(await hasOpdCatalogPermission())) {
-          sendResponse({ ok: false, error: 'permission_denied' });
-          return;
-        }
-        const result = await shareLocalPrompt(
-          message.localUuid || '',
-          message.turnstileToken || ''
-        );
-        sendResponse(result);
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || 'publish_failed' });
-      }
-    })();
-    return true;
-  }
-
-  if (message?.type === 'OPD_PUBLISH_DELETE') {
-    (async () => {
-      try {
-        const result = await unpublishLocalPrompt(message.localUuid || '');
-        sendResponse(result);
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || 'delete_failed' });
-      }
-    })();
-    return true;
-  }
-
   if (message?.type === 'OPM_CLOSE_EXPANDED_TAB') {
     const tabId = sender.tab?.id;
     if (!tabId) {
@@ -672,28 +435,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
-        await chrome.storage.local.set({
-          onboardingCompleted: true,
-        });
+        await chrome.storage.local.set({ onboardingCompleted: true });
         await chrome.storage.local.remove(OPM_DEV_FORCE_ONBOARDING_STORAGE_KEY);
-
-        const openSidePanel = () => {
-          if (!chrome.sidePanel?.open || !tab.id) return;
-          chrome.sidePanel.open({ tabId: tab.id }).catch((error) => {
-            console.warn('Failed to open side panel after onboarding launch:', error);
-          });
-        };
-
-        openSidePanel();
-        if (tab.status !== 'complete') {
-          const listener = (updatedTabId, info) => {
-            if (updatedTabId !== tab.id || info.status !== 'complete') return;
-            chrome.tabs.onUpdated.removeListener(listener);
-            openSidePanel();
-          };
-          chrome.tabs.onUpdated.addListener(listener);
-        }
-
         sendResponse({ ok: true, tabId: tab.id });
       } catch (error) {
         sendResponse({ ok: false, error: error?.message || 'launch_failed' });
@@ -768,12 +511,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener(function (details) {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   console.log('onInstalled', details);
-  // COMMENT: Rebuild providers map on install and update (but only open UI on first install)
+  // COMMENT: Rebuild providers map on install and update (but only open UI on first install).
   const shouldRebuild = ['install', 'update'].includes(details.reason);
   if (details.reason === 'install') {
-    // COMMENT: Default new installs to hot-corner mode with tags enabled
+    // COMMENT: Default new installs to hot-corner mode with tags enabled.
     chrome.storage.local.set({ displayMode: 'hotCorner', enableTags: true }, () => {
       chrome.tabs.create({ url: 'permissions/permissions.html' });
     });
@@ -784,7 +526,7 @@ chrome.runtime.onInstalled.addListener(function (details) {
         await syncRegisteredContentScripts();
         const providersMap = await checkProviderPermissions();
         console.log('Providers Map:', providersMap);
-        // COMMENT: Never overwrite storage with null when permission checks fail transiently
+        // COMMENT: Never overwrite storage with null when permission checks fail transiently.
         if (providersMap && typeof providersMap === 'object') {
           await chrome.storage.local.set({ aiProvidersMap: providersMap });
         }
@@ -794,7 +536,6 @@ chrome.runtime.onInstalled.addListener(function (details) {
     })();
   }
 });
-
 
 chrome.permissions.onRemoved.addListener((permissions) => {
   invalidateGrantedOriginsCache();
@@ -815,7 +556,6 @@ chrome.permissions.onAdded.addListener(async (permissions) => {
   });
   if (permissions.origins && permissions.origins.length > 0) {
     for (const origin of permissions.origins) {
-      if (/openpromptdatabase\.com/i.test(origin)) continue;
       try {
         const queryUrl = origin === '<all_urls>' ? ['http://*/*', 'https://*/*'] : origin;
         const tabs = await chrome.tabs.query({ url: queryUrl });
@@ -825,7 +565,7 @@ chrome.permissions.onAdded.addListener(async (permissions) => {
           if (!tab?.id || !tab.url) continue;
           console.log(`Injecting scripts into tab ${tab.id} (${tab.url})`);
           const injected = await injectContentScriptsIfNeeded(tab.id, tab.url);
-          // COMMENT: Tabs open before install/grant often cannot be scripted until they reload
+          // COMMENT: Tabs open before install/grant often cannot be scripted until they reload.
           if (!injected && tab.active) {
             await reloadTabAndWait(tab.id);
           }
@@ -834,19 +574,6 @@ chrome.permissions.onAdded.addListener(async (permissions) => {
         console.error(`Failed to query tabs or inject script for origin ${origin}:`, err);
       }
     }
-  }
-});
-
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // COMMENT: Registered content scripts handle injection. Only re-hide the in-page
-  // launcher when this window's side panel is still open after a navigation.
-  if (changeInfo.status !== 'complete' || !tab.url || !/^https?:/i.test(tab.url)) return;
-  if (!tab.windowId || !sidePanelOpenWindows.has(tab.windowId)) return;
-  if (!(await tabHasScriptingPermission(tab.url))) return;
-  try {
-    await chrome.tabs.sendMessage(tabId, { type: 'OPM_SIDE_PANEL_STATE', open: true });
-  } catch (_) {
-    // Content script may not be listening yet on this navigation
   }
 });
 
@@ -866,7 +593,7 @@ async function checkProviderPermissions() {
         hasPermission: hasPermission ? 'Yes' : 'No',
         urlPattern: urlPattern,
         url: providerUrl,
-        iconUrl: resolveProviderIconUrl(providerInfo.icon_url, providerInfo.url)
+        iconUrl: resolveProviderIconUrl(providerInfo.icon_url, providerInfo.url),
       };
     }
 
@@ -879,7 +606,7 @@ async function checkProviderPermissions() {
 
 // --- CONTEXT MENU FOR PROMPT MANAGER ---
 
-// Helper: Get all prompts via the unified manager (single source of truth)
+// Helper: Get all prompts via the unified manager (single source of truth).
 async function getAllPrompts() {
   return await getPrompts();
 }
@@ -896,6 +623,7 @@ function menuCall(method, ...args) {
     });
   });
 }
+
 function createPromptContextMenu() {
   menuPending = true;
   if (menuTask) return menuTask;
@@ -908,32 +636,42 @@ function createPromptContextMenu() {
       await menuCall('removeAll');
       await menuCall('create', { id: 'open-prompt-manager', title: 'Open Prompt Manager', contexts: ['all'] });
       await menuCall('create', {
-        id: 'save-as-prompt', parentId: 'open-prompt-manager', title: t('contextMenu.savePrompt'), contexts: ['selection'],
+        id: 'save-as-prompt',
+        parentId: 'open-prompt-manager',
+        title: t('contextMenu.savePrompt'),
+        contexts: ['selection'],
       });
       await menuCall('create', {
-        id: 'save-separator', parentId: 'open-prompt-manager', type: 'separator', contexts: ['selection'],
+        id: 'save-separator',
+        parentId: 'open-prompt-manager',
+        type: 'separator',
+        contexts: ['selection'],
       });
       // Drain every callback even if one entry fails, before allowing another rebuild.
-      const results = await Promise.allSettled(prompts.map(prompt => menuCall('create', {
-        id: 'prompt-' + prompt.uuid, parentId: 'open-prompt-manager',
-        title: prompt.title || t('prompt.untitled'), contexts: ['all'],
+      const results = await Promise.allSettled(prompts.map((prompt) => menuCall('create', {
+        id: `prompt-${prompt.uuid}`,
+        parentId: 'open-prompt-manager',
+        title: prompt.title || t('prompt.untitled'),
+        contexts: ['all'],
       })));
-      for (const result of results) if (result.status === 'rejected') console.warn('[OPM] Menu entry:', result.reason);
+      for (const result of results) {
+        if (result.status === 'rejected') console.warn('[OPM] Menu entry:', result.reason);
+      }
       await chrome.action.setTitle({ title: t('contextMenu.openSidebar') });
     }
-  })().catch(error => console.error('[OPM] Menu rebuild failed:', error)).finally(() => {
+  })().catch((error) => console.error('[OPM] Menu rebuild failed:', error)).finally(() => {
     menuTask = null;
     if (menuPending) createPromptContextMenu();
   });
   return menuTask;
 }
 
-// On install or update, create the context menu
+// On install or update, create the context menu.
 chrome.runtime.onInstalled.addListener(() => {
   createPromptContextMenu();
 });
 
-// On startup, also create the context menu (for reloads)
+// On startup, also create the context menu (for reloads).
 chrome.runtime.onStartup.addListener(() => {
   createPromptContextMenu();
   (async () => {
@@ -952,9 +690,9 @@ chrome.runtime.onStartup.addListener(() => {
 globalThis.OPMI18n.subscribe(createPromptContextMenu);
 globalThis.OPMI18n.ready.then(() => chrome.action.setTitle({
   title: globalThis.OPMI18n.t('contextMenu.openSidebar'),
-})).catch(error => console.warn('[OPM] Toolbar title:', error));
+})).catch((error) => console.warn('[OPM] Toolbar title:', error));
 
-// COMMENT: Debounce menu rebuilds when prompts change in bursts (import / reorder)
+// COMMENT: Debounce menu rebuilds when prompts change in bursts (import / reorder).
 let contextMenuRebuildTimer = null;
 onPromptsChanged(() => {
   clearTimeout(contextMenuRebuildTimer);
@@ -963,13 +701,10 @@ onPromptsChanged(() => {
   }, 200);
 });
 
-// When a context menu item is clicked
+// When a context menu item is clicked.
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  // Handle "Save as prompt": opens a small popup dialog prefilled with the selected text
+  // Handle "Save as prompt": opens a small popup dialog prefilled with the selected text.
   if (info.menuItemId === 'save-as-prompt') {
-    // COMMENT: Use Chrome's built-in dialogs in the page context:
-    // - prompt() to capture the title
-    // - alert() to show validation error if title is empty
     try {
       if (!tab?.id) {
         console.error('Save-as-prompt requires an active page tab.');
@@ -977,34 +712,32 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       const selected = info.selectionText || '';
       await globalThis.OPMI18n.ready;
-      // Ask for a title using the page's built-in blocking prompt
       const [{ result: titleValue }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: message => window.prompt(message, ''),
-        args: [globalThis.OPMI18n.t('prompt.selectionTitlePrompt')]
+        func: (message) => window.prompt(message, ''),
+        args: [globalThis.OPMI18n.t('prompt.selectionTitlePrompt')],
       });
       if (titleValue === null || titleValue === undefined) return;
       const title = String(titleValue).trim();
       if (!title) {
-        // Show the requested error message if no title provided
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: message => window.alert(message),
-          args: [globalThis.OPMI18n.t('prompt.selectionTitleRequired')]
+          func: (message) => window.alert(message),
+          args: [globalThis.OPMI18n.t('prompt.selectionTitleRequired')],
         });
         return;
       }
-      // Persist the prompt using the unified storage API
       await savePrompt({ title, content: selected });
     } catch (err) {
       console.error('Failed to save prompt from selection:', err);
     }
     return;
   }
-  if (info.menuItemId.startsWith('prompt-')) {
+
+  if (typeof info.menuItemId === 'string' && info.menuItemId.startsWith('prompt-')) {
     const uuid = info.menuItemId.replace('prompt-', '');
     const prompts = await getAllPrompts();
-    const prompt = prompts.find(p => p.uuid === uuid);
+    const prompt = prompts.find((item) => item.uuid === uuid);
     if (!prompt?.content) return;
 
     const targetTab = tab?.id

@@ -1,13 +1,7 @@
-// COMMENT: Install onboarding — launcher choice, unified LLM shortcuts, sidebar launch
+// COMMENT: Install onboarding — launcher choice and unified LLM shortcuts
 import { OPM_DEV_FORCE_ONBOARDING_STORAGE_KEY } from '../devFlags.js';
 import { attachProviderIconFallback } from '../utils/providerIcons.js';
 import { expandOriginPatterns } from '../utils/originPatterns.js';
-import { OPD_CATALOG_URL, OPD_MSG } from '../opd/opdConstants.js';
-import {
-  requestOpdCatalogPermission,
-  syncOpdCatalogAccess,
-} from '../opd/opdCatalogAccess.js';
-import { getPublishSettings } from '../opd/opdPublishToken.js';
 
 const t = (key, params) => window.OPMI18n.t(key, params);
 
@@ -28,15 +22,7 @@ document.addEventListener('DOMContentLoaded', async function () {
   const DEFAULT_DISPLAY_MODE = 'hotCorner';
   const ALLOWED_DISPLAY_MODES = new Set(['standard', 'hotCorner', 'invisible']);
 
-  // COMMENT: Cached so sidePanel.open can run on the click gesture (windows.getCurrent is async)
-  let onboardingWindowId = null;
-  chrome.windows.getCurrent((win) => {
-    onboardingWindowId = win?.id ?? null;
-  });
-
-  /**
-   * COMMENT: Wire the install-page launcher choice (hover button vs hot corner vs sidebar).
-   */
+  /** COMMENT: Wire the install-page launcher choice. */
   function initDisplayModePicker() {
     const section = document.getElementById('display-mode-section');
     if (!section) return;
@@ -72,66 +58,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   }
 
-  /**
-   * COMMENT: Features-section catalog link + sharing toggle (same storage as OPD settings).
-   */
-  function initCommunityFeatures() {
-    const catalogLink = document.getElementById('community-prompts-btn');
-    const shareToggle = document.getElementById('opd-share-toggle');
-
-    if (catalogLink) {
-      catalogLink.href = `${OPD_CATALOG_URL}/`;
-      catalogLink.addEventListener('click', (event) => {
-        event.preventDefault();
-        // COMMENT: Request on this click, then open the catalog so the permission dialog stays on this tab
-        requestOpdCatalogPermission()
-          .then((granted) => {
-            if (granted) return syncOpdCatalogAccess();
-          })
-          .catch(console.error)
-          .finally(() => {
-            chrome.tabs.create({ url: `${OPD_CATALOG_URL}/`, active: true });
-          });
-      });
-    }
-
-    if (!shareToggle) return;
-
-    const applyShareState = (enabled) => {
-      shareToggle.checked = Boolean(enabled);
-    };
-
-    getPublishSettings()
-      .then((settings) => applyShareState(settings.enabled))
-      .catch(console.error);
-
-    shareToggle.addEventListener('change', async () => {
-      const enabled = shareToggle.checked;
-      if (enabled) {
-        const granted = await requestOpdCatalogPermission();
-        if (!granted) {
-          applyShareState(false);
-          return;
-        }
-        await syncOpdCatalogAccess();
-      }
-
-      const res = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: OPD_MSG.PUBLISH_ENABLE, enabled }, (response) => {
-          resolve(response ?? { ok: false });
-        });
-      });
-      if (!res?.ok) applyShareState(!enabled);
-    });
-
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'sync' || !changes.opdPublishEnabled) return;
-      applyShareState(changes.opdPublishEnabled.newValue !== false);
-    });
-  }
-
   initDisplayModePicker();
-  initCommunityFeatures();
 
   const providerShortcutsContainer = document.getElementById('provider-shortcuts');
   const removeAllBtn = document.getElementById('remove-all-permissions');
@@ -143,7 +70,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     return;
   }
 
-  // COMMENT: Custom sites are pinned from the sidebar on the target page — show guidance only here
+  // COMMENT: Custom sites are pinned from the manager on the target page — show guidance only here.
   if (anotherWebsiteBtn && anotherWebsiteHint) {
     anotherWebsiteBtn.addEventListener('click', () => {
       const willShow = anotherWebsiteHint.hidden;
@@ -155,18 +82,13 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   }
 
-  /** COMMENT: Request host access in the click handler, then open tab + sidebar via the service worker. */
+  /** COMMENT: Request host access in the click handler, then open the provider tab. */
   function launchProviderFromOnboarding(providerKey, providerInfo) {
     return new Promise((resolve) => {
       const origins = expandOriginPatterns(providerInfo.urlPattern);
       if (!origins.length) {
         resolve({ ok: false, error: 'missing_provider' });
         return;
-      }
-
-      // COMMENT: sidePanel.open requires this click — do not await contains() first
-      if (onboardingWindowId != null && chrome.sidePanel?.open) {
-        chrome.sidePanel.open({ windowId: onboardingWindowId }).catch(() => {});
       }
 
       const finishLaunch = (permissionGranted) => {
@@ -220,7 +142,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
   }
 
-  /** COMMENT: Render all default LLM providers as equal shortcuts (no allowed/available split). */
+  /** COMMENT: Render all default LLM providers as equal shortcuts. */
   function populateProviders(providersMap) {
     providerShortcutsContainer.querySelectorAll('[data-provider]').forEach((el) => el.remove());
 
@@ -235,7 +157,8 @@ document.addEventListener('DOMContentLoaded', async function () {
       element.dataset.provider = key;
       const icon = document.createElement('img');
       icon.src = iconUrl;
-      icon.width = 32; icon.height = 32;
+      icon.width = 32;
+      icon.height = 32;
       icon.className = 'custom-rounded-circle';
       window.OPMI18n.bind(icon, 'provider.icon', { name: key }, 'alt');
       const label = document.createElement('span');
@@ -252,7 +175,6 @@ document.addEventListener('DOMContentLoaded', async function () {
       });
     }
 
-    // COMMENT: Keep "+ Another website" after the built-in provider pills
     if (anotherWebsiteBtn) {
       providerShortcutsContainer.appendChild(anotherWebsiteBtn);
     }
@@ -267,8 +189,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
   });
 
-
-
   chrome.storage.local.get(['aiProvidersMap'], function (result) {
     if (result.aiProvidersMap) {
       populateProviders(result.aiProvidersMap);
@@ -277,7 +197,6 @@ document.addEventListener('DOMContentLoaded', async function () {
     providerShortcutsContainer.replaceChildren(window.OPMI18n.bind(document.createElement('p'), 'onboarding.noProviderData'));
   });
 
-  // COMMENT: Remove all permissions handler — revokes all optional origins and resets providers map
   if (removeAllBtn) {
     removeAllBtn.addEventListener('click', () => {
       chrome.storage.local.get(['aiProvidersMap'], (res) => {

@@ -1,60 +1,26 @@
 /**
- * Shared info banner copy for the side panel and in-page prompt list.
- * Keep in sync with PromptUIManager.BANNER_CONFIG in content.js.
+ * Shared info-banner compatibility module.
+ *
+ * The community catalog feature has been removed, so the old OPD banner must
+ * never surface in either the manager or the in-page prompt list.
  */
-import { OPD_CHANGELOG_URL } from '../opd/opdConstants.js';
 
 /** @type {{ active: boolean, id: string, storageKey: string }} */
 export const OPM_INFO_BANNER = {
-  active: true,
-  // COMMENT: Bump id when banner copy changes so dismissed users see the update
-  id: 'info-banner-v4-community',
+  active: false,
+  id: 'info-banner-disabled',
   storageKey: 'dismissedBanners',
 };
 
-/** @returns {string} HTML snippet for the banner body (Learn more → OPD changelog). */
+/** @returns {string} */
 export function buildInfoBannerHtml() {
-  return `<span><strong data-i18n="banner.communityNew">New —</strong> <span data-i18n="banner.communityAction">Share &amp; Import Community Prompts</span> <a href="${OPD_CHANGELOG_URL}" target="_blank" rel="noopener noreferrer" class="opm-info-banner-link" data-i18n="banner.learnMore">Learn more</a></span>`;
+  return '';
 }
 
-export { OPD_CHANGELOG_URL };
-
 /**
- * COMMENT: Dismissible update banner above the side panel prompt list.
- * @param {HTMLElement|null} hostEl
+ * Retained as a no-op so older callers can be removed independently without
+ * breaking the full-page manager during the transition.
  */
-export async function mountSidepanelInfoBanner(hostEl) {
-  if (!hostEl || !OPM_INFO_BANNER.active) return;
-
-  try {
-    const stored = await chrome.storage.local.get([OPM_INFO_BANNER.storageKey]);
-    const dismissed = stored?.[OPM_INFO_BANNER.storageKey] || [];
-    if (dismissed.includes(OPM_INFO_BANNER.id)) return;
-  } catch (_) {
-    return;
-  }
-
-  const banner = document.createElement('div');
-  banner.className = 'sidebar-info-banner';
-  banner.innerHTML = `
-    <div class="sidebar-info-banner-body">${buildInfoBannerHtml()}</div>
-    <button type="button" class="sidebar-info-banner-close" data-i18n-aria-label="banner.dismiss" aria-label="Dismiss update banner">&times;</button>
-  `;
-
-  const closeBtn = banner.querySelector('.sidebar-info-banner-close');
-  closeBtn?.addEventListener('click', async () => {
-    banner.remove();
-    try {
-      const stored = await chrome.storage.local.get([OPM_INFO_BANNER.storageKey]);
-      const dismissed = stored?.[OPM_INFO_BANNER.storageKey] || [];
-      if (!dismissed.includes(OPM_INFO_BANNER.id)) {
-        dismissed.push(OPM_INFO_BANNER.id);
-        await chrome.storage.local.set({ [OPM_INFO_BANNER.storageKey]: dismissed });
-      }
-    } catch (_) { /* ignore */ }
-  });
-
-  hostEl.appendChild(banner);
-  globalThis.OPMI18n?.apply?.(banner);
-  hostEl.hidden = false;
+export async function mountSidepanelInfoBanner() {
+  // Intentionally empty.
 }

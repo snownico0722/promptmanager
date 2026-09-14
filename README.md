@@ -2,45 +2,34 @@
 
 A lightweight, open-source Chrome extension for saving, organizing, and inserting prompts across AI chatbots — ChatGPT, Claude, Gemini, Grok, and 14 other built-in assistants.
 
-**Current version:** 3.0.5 · [Chrome Web Store](https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain) · [Open Prompt Database](https://openpromptdatabase.com/) · [Release notes](https://github.com/jonathanbertholet/promptmanager/releases/tag/3.0.5)
+**Current version:** 3.0.5 · [Chrome Web Store](https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain) · [Release notes](https://github.com/jonathanbertholet/promptmanager/releases/tag/3.0.5)
 
 ## Features
 
 ### Prompt library
 
-- Save, edit, reorder, and delete prompts from the **side panel** or an **in-page panel** on assistant sites
-- Click a prompt in the **side panel** to insert it into the chat input on an enabled site
-- **Tags** with search and filter — synced between the side panel and in-page list; tag suggestions on create/edit forms
+- Click the extension icon to open the **full-page prompt manager**
+- Save, edit, reorder, and delete prompts from the full-page manager or the in-page panel on assistant sites
+- **Tags** with search and filter; tag suggestions on create/edit forms
 - Drag to reorder tags in Settings → **Tag management**
-- **Variables** with `#variable#` syntax — fill in values in the side panel or in-page panel before inserting
+- **Variables** with `#variable#` syntax — fill in values before inserting
 - **Import / export** full v2 backups (prompts, folders, tag metadata) as JSON
-- **Copy to clipboard** from the side panel — handy on unsupported sites
+- **Copy to clipboard** from the manager
 - Right-click a saved prompt in the **context menu** to insert it into the current chat
 - Save selected text to your library via the **context menu**
 
 ### On assistant sites
 
-- Three launchers (choose on first run or in Settings): **floating button**, **hot corner**, or **sidebar / shortcut** only
+- Three in-page launcher modes: **floating button**, **hot corner**, or **shortcut only**
 - One-click insert into the chat input, with optional append mode
 - **Custom keyboard shortcut** — record your own open/close combo (default: ⌘⇧P on Mac, Ctrl+M on Windows/Linux)
-- The in-page launcher hides while the Chrome side panel is open
-- **Custom websites** — pin any site’s chat input from the side panel
+- **Custom websites** — pin any site’s chat input
 - Remembers the last successful chat input per site
 - Light and dark themes, with optional force-dark mode
 
-### Open Prompt Database
-
-Browse community prompts on the [Open Prompt Database](https://openpromptdatabase.com/) and add them to your library with one click. Share your own prompts from the **side panel**.
-
-- Stable `opd:` ids — re-import updates the same prompt when the catalog entry changes
-- Duplicate detection — already in your library? The site shows “Already in library”
-- **Share to Open Prompt Database** publishes a prompt you choose (title, content, tags) under your publisher handle
-- Sharing an imported community prompt publishes **your copy**, not the original catalog row
-- Link from Settings → **Browse the community catalog**
-
 ### Settings & permissions
 
-Unified settings in the **side panel** and on **assistant pages** (same storage keys): launcher mode, preferences, tag management, import/export, custom open shortcut, and a **permissions editor** for controlling which sites the extension can access.
+Settings include launcher mode, preferences, tag management, import/export, custom open shortcut, and a **permissions editor** for controlling which sites the extension can access.
 
 Site access is **optional**. The extension does not require host permissions to install or update.
 
@@ -59,8 +48,9 @@ Plus any site you configure as a **custom website**.
 ## Installation
 
 1. Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain)
-2. On first run, pick a launcher (floating button, hot corner, or sidebar / shortcut)
-3. Click an assistant to grant site access, open that site, and open the side panel
+2. On first run, pick an in-page launcher (floating button, hot corner, or shortcut only)
+3. Click an assistant to grant site access
+4. Click the extension icon whenever you want the full-page prompt manager
 
 You can add or remove sites later from Settings → **Permissions**.
 
@@ -92,12 +82,11 @@ Tests use **Jest** (with optional **Puppeteer** helpers). See [TESTING.md](TESTI
 
 ## Privacy
 
-**[Full privacy policy](PRIVACY.md)** — also at [openpromptdatabase.com/privacy](https://openpromptdatabase.com/privacy).
+**[Full privacy policy](PRIVACY.md)**
 
 - Your prompt library stays **locally** in the extension
-- Catalog **import** copies a prompt you selected from the [Open Prompt Database](https://openpromptdatabase.com/) into your local library
-- Catalog **share** publishes a prompt you choose under your public handle — only when you click **Share to Open Prompt Database**
-- No analytics or tracking
+- Site access is optional and granted per assistant/site
+- No community catalog, public prompt publishing, analytics, or tracking
 
 ## License
 
