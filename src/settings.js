@@ -1,5 +1,5 @@
 import { exportPrompts, importPrompts } from './importExport.js';
-import { getPrompts, setPrompts } from './storage/promptStorage.js';
+import { getPrompts, deleteAllPrompts as clearWorkspacePrompts, removeTagFromPrompts } from './storage/promptStorage.js';
 import { getAllPinnedInputs, removePinnedForHostname } from './storage/pinnedInputStorage.js';
 import { removeLearnedForHostname } from './storage/learnedInputStorage.js';
 import {
@@ -9,13 +9,13 @@ import {
 } from './utils/providerIcons.js';
 import { expandOriginPatterns } from './utils/originPatterns.js';
 import { uniqueNormalizedTags } from './utils/tags.js';
-import { mountSidepanelFooter } from './sidepanel/sidepanelFooter.js';
+import { SETTINGS_DEFAULTS } from './settings-defaults.js';
 
 const t = (key, params) => window.OPMI18n.t(key, params);
 
 // COMMENT: Storage keys shared with the in-page panel and side panel
 const DISPLAY_MODE_KEY = 'displayMode';
-const DEFAULT_DISPLAY_MODE = 'standard';
+const DEFAULT_DISPLAY_MODE = SETTINGS_DEFAULTS.displayMode;
 const ALLOWED_DISPLAY_MODES = new Set(['standard', 'hotCorner', 'invisible']);
 const KEYBOARD_SHORTCUT_KEY = 'keyboardShortcut';
 const APPEND_MODE_KEY = 'disableOverwrite';
@@ -104,7 +104,7 @@ function initPreferenceToggles() {
 
   storageGet([APPEND_MODE_KEY, ENABLE_TAGS_KEY, FORCE_DARK_KEY]).then((result) => {
     appendToggle.checked = !!result[APPEND_MODE_KEY];
-    tagsToggle.checked = !!result[ENABLE_TAGS_KEY];
+    tagsToggle.checked = result[ENABLE_TAGS_KEY] ?? SETTINGS_DEFAULTS.enableTags;
     darkToggle.checked = !!result[FORCE_DARK_KEY];
     updateTagManagementVisibility(tagsToggle.checked);
     // COMMENT: Render after toggles load — checkbox defaults are false before storage resolves
@@ -239,7 +239,7 @@ async function renderTagManagement() {
   if (!listEl || !emptyEl) return;
 
   const stored = await storageGet([ENABLE_TAGS_KEY]);
-  const enabled = !!stored[ENABLE_TAGS_KEY];
+  const enabled = stored[ENABLE_TAGS_KEY] ?? SETTINGS_DEFAULTS.enableTags;
   updateTagManagementVisibility(enabled);
   if (!enabled) {
     listEl.innerHTML = '';
@@ -301,12 +301,7 @@ async function renderTagManagement() {
       removeBtn.textContent = '×';
       removeBtn.addEventListener('click', async () => {
         if (!confirm(t('tags.removeConfirm', { tag }))) return;
-        const currentPrompts = await getPrompts();
-        const nextPrompts = currentPrompts.map((prompt) => ({
-          ...prompt,
-          tags: Array.isArray(prompt.tags) ? prompt.tags.filter(t => t !== tag) : [],
-        }));
-        await setPrompts(nextPrompts);
+        const nextPrompts = await removeTagFromPrompts(tag);
         counts = computeTagCounts(nextPrompts);
         finalOrder = finalOrder.filter(t => t !== tag);
         if (tagMgmtState) {
@@ -596,7 +591,7 @@ function initLanguagePicker() {
 
 async function deleteAllPrompts() {
   if (confirm(t('settings.deleteAllConfirm'))) {
-    await setPrompts([]);
+    await clearWorkspacePrompts();
     setImportExportStatus('settings.allDeleted');
     renderTagManagement().catch(console.error);
   }
@@ -604,8 +599,6 @@ async function deleteAllPrompts() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   await window.OPMI18n.ready;
-  const shell = document.querySelector('.settings-page-shell');
-  mountSidepanelFooter({ active: 'settings', root: shell || document.body });
 
   initLanguagePicker();
   initDisplayModePicker();

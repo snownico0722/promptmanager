@@ -1,29 +1,10 @@
-const { llm_providers } = require('../src/llm_providers.json');
+import { describe, it as test } from 'node:test';
+import assert from 'node:assert/strict';
+const expect = value => ({ toBe: expected => assert.equal(value, expected), toEqual: expected => assert.deepEqual(value, expected), toBeTruthy: () => assert.ok(value) });
+import fs from 'node:fs';
+const { llm_providers } = JSON.parse(fs.readFileSync(new URL('../src/llm_providers.json', import.meta.url), 'utf8'));
 
-function expandOriginPatterns(pattern) {
-  return String(pattern || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function originPatternToRegex(originPattern) {
-  const regexPattern = String(originPattern || '')
-    .replace(/\\/g, '\\\\')
-    .replace(/[.]/g, '\\.')
-    .replace(/[*]/g, '.*');
-  return new RegExp(`^${regexPattern}`);
-}
-
-function urlMatchesOriginPattern(url, originPattern) {
-  if (!url || !originPattern) return false;
-  if (originPattern === '<all_urls>') return /^https?:/i.test(String(url));
-  try {
-    return originPatternToRegex(originPattern).test(String(url));
-  } catch {
-    return false;
-  }
-}
+import { expandOriginPatterns, urlMatchesOriginPattern } from '../src/utils/originPatterns.js';
 
 function providerMatchesUrl(name, url) {
   const provider = llm_providers.find((item) => item.name === name);

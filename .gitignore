@@ -3,7 +3,6 @@ node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
-package-lock.json
 yarn.lock
 
 # Environment variables
@@ -18,7 +17,6 @@ yarn.lock
 *.swo
 .DS_Store
 .cursorrules
-.gitignore
 
 # Debug logs
 debug.log
@@ -36,9 +34,9 @@ coverage/
 *.tmp
 *.temp
 
-# Open Prompt Database website (private repo — clone separately)
-opd/
-
 # Localization test output
 i18n-browser-results.json
 i18n-screenshots/
+
+dist/
+test-results/

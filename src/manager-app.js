@@ -1,41 +1,33 @@
 import {
-  deleteFolder,
-  deletePrompt,
-  getFolders,
-  getPrompts,
-  onPromptsChanged,
-  saveFolder,
-  savePrompt,
-  updateFolder,
-  updatePrompt,
+  deleteFolder, deletePrompt, getStoreSnapshot, onStoreChanged,
+  saveFolder, savePrompt, updateFolder, updatePrompt,
+  saveWorkspace, renameWorkspace as renameStoredWorkspace,
+  deleteWorkspace, setActiveWorkspace,
 } from './storage/promptStorage.js';
+import { SETTINGS_DEFAULTS } from './settings-defaults.js';
 import { normalizeTag, uniqueNormalizedTags } from './utils/tags.js';
 
 const OPTION_ALL = '__all__';
 const OPTION_UNCATEGORIZED = '__uncategorized__';
 const DEFAULT_WORKSPACE_ID = 'workspace-default';
 
-const WORKSPACES_KEY = 'opmManagerWorkspacesV1';
-const ACTIVE_WORKSPACE_KEY = 'opmManagerActiveWorkspaceV1';
-const PROMPT_WORKSPACES_KEY = 'opmManagerPromptWorkspacesV1';
-const FOLDER_WORKSPACES_KEY = 'opmManagerFolderWorkspacesV1';
-
 const state = {
   prompts: [],
   folders: [],
   workspaces: [],
-  promptWorkspaces: {},
-  folderWorkspaces: {},
   activeWorkspaceId: DEFAULT_WORKSPACE_ID,
   folderOption: OPTION_ALL,
   workspaceEditing: false,
   selectedPromptId: null,
   search: '',
-  enableTags: true,
+  enableTags: SETTINGS_DEFAULTS.enableTags,
+  revision: -1,
+  saving: false,
 };
 
 const el = {};
 let tags = [];
+let editorGeneration = 0;
 
 function t(key, params, fallback = key) {
   return globalThis.OPMI18n?.t?.(key, params, fallback) ?? fallback;
@@ -49,43 +41,43 @@ function isChineseUi() {
 function copy() {
   return isChineseUi()
     ? {
-        edit: '编辑',
-        done: '完成',
-        create: '新建',
-        rename: '重命名',
-        remove: '删除',
-        defaultName: '默认',
-        name: '名称',
-        keepOne: '至少需要保留一个。',
-        confirmRemove: '删除“{name}”？其中内容会移动到其他项。',
-        noFolder: '无文件夹',
-        all: '全部',
-        uncategorized: '未分类',
-        newFolder: '新建文件夹',
-        renameFolder: '重命名文件夹',
-        deleteFolder: '删除文件夹',
-        folderName: '文件夹名称',
-        confirmDeleteFolder: '删除文件夹“{name}”？其中的提示词会变为未分类。',
-      }
+      edit: '编辑',
+      done: '完成',
+      create: '新建',
+      rename: '重命名',
+      remove: '删除',
+      defaultName: '默认',
+      name: '名称',
+      keepOne: '至少需要保留一个。',
+      confirmRemove: '删除“{name}”？其中内容会移动到其他项。',
+      noFolder: '无文件夹',
+      all: '全部',
+      uncategorized: '未分类',
+      newFolder: '新建文件夹',
+      renameFolder: '重命名文件夹',
+      deleteFolder: '删除文件夹',
+      folderName: '文件夹名称',
+      confirmDeleteFolder: '删除文件夹“{name}”？其中的提示词会变为未分类。',
+    }
     : {
-        edit: 'Edit',
-        done: 'Done',
-        create: 'New',
-        rename: 'Rename',
-        remove: 'Delete',
-        defaultName: 'Default',
-        name: 'Name',
-        keepOne: 'At least one must remain.',
-        confirmRemove: 'Delete “{name}”? Its contents will move to another item.',
-        noFolder: 'No folder',
-        all: 'All',
-        uncategorized: 'Uncategorized',
-        newFolder: 'New folder',
-        renameFolder: 'Rename folder',
-        deleteFolder: 'Delete folder',
-        folderName: 'Folder name',
-        confirmDeleteFolder: 'Delete folder “{name}”? Its prompts will become uncategorized.',
-      };
+      edit: 'Edit',
+      done: 'Done',
+      create: 'New',
+      rename: 'Rename',
+      remove: 'Delete',
+      defaultName: 'Default',
+      name: 'Name',
+      keepOne: 'At least one must remain.',
+      confirmRemove: 'Delete “{name}”? Its contents will move to another item.',
+      noFolder: 'No folder',
+      all: 'All',
+      uncategorized: 'Uncategorized',
+      newFolder: 'New folder',
+      renameFolder: 'Rename folder',
+      deleteFolder: 'Delete folder',
+      folderName: 'Folder name',
+      confirmDeleteFolder: 'Delete folder “{name}”? Its prompts will become uncategorized.',
+    };
 }
 
 function fmt(text, params = {}) {
@@ -95,25 +87,12 @@ function fmt(text, params = {}) {
   );
 }
 
-function generateId(prefix) {
-  if (globalThis.crypto?.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function promptWorkspaceId(uuid) {
-  return state.promptWorkspaces[uuid] || DEFAULT_WORKSPACE_ID;
-}
-
-function folderWorkspaceId(id) {
-  return state.folderWorkspaces[id] || DEFAULT_WORKSPACE_ID;
-}
-
 function activePrompts() {
-  return state.prompts.filter((prompt) => promptWorkspaceId(prompt.uuid) === state.activeWorkspaceId);
+  return state.prompts.filter((prompt) => prompt.workspaceId === state.activeWorkspaceId);
 }
 
 function activeFolders() {
-  return state.folders.filter((folder) => folderWorkspaceId(folder.id) === state.activeWorkspaceId);
+  return state.folders.filter((folder) => folder.workspaceId === state.activeWorkspaceId);
 }
 
 function displayWorkspaceName(workspace) {
@@ -126,78 +105,6 @@ function displayWorkspaceName(workspace) {
   return name || copy().defaultName;
 }
 
-async function persistWorkspaceState() {
-  await chrome.storage.local.set({
-    [WORKSPACES_KEY]: state.workspaces,
-    [ACTIVE_WORKSPACE_KEY]: state.activeWorkspaceId,
-    [PROMPT_WORKSPACES_KEY]: state.promptWorkspaces,
-    [FOLDER_WORKSPACES_KEY]: state.folderWorkspaces,
-  });
-}
-
-async function ensureWorkspaceState() {
-  const stored = await chrome.storage.local.get([
-    WORKSPACES_KEY,
-    ACTIVE_WORKSPACE_KEY,
-    PROMPT_WORKSPACES_KEY,
-    FOLDER_WORKSPACES_KEY,
-  ]);
-
-  const labels = copy();
-  let workspaces = Array.isArray(stored[WORKSPACES_KEY])
-    ? stored[WORKSPACES_KEY]
-      .filter((item) => item && typeof item.id === 'string' && typeof item.name === 'string')
-      .map((item) => ({ id: item.id, name: item.name.trim() || labels.defaultName }))
-    : [];
-
-  if (workspaces.length === 0) {
-    workspaces = [{ id: DEFAULT_WORKSPACE_ID, name: labels.defaultName }];
-  }
-
-  let activeWorkspaceId = stored[ACTIVE_WORKSPACE_KEY];
-  if (!workspaces.some((item) => item.id === activeWorkspaceId)) {
-    activeWorkspaceId = workspaces[0].id;
-  }
-
-  const promptWorkspaces = stored[PROMPT_WORKSPACES_KEY]
-    && typeof stored[PROMPT_WORKSPACES_KEY] === 'object'
-    ? { ...stored[PROMPT_WORKSPACES_KEY] }
-    : {};
-  const folderWorkspaces = stored[FOLDER_WORKSPACES_KEY]
-    && typeof stored[FOLDER_WORKSPACES_KEY] === 'object'
-    ? { ...stored[FOLDER_WORKSPACES_KEY] }
-    : {};
-
-  const fallbackWorkspace = workspaces.some((item) => item.id === DEFAULT_WORKSPACE_ID)
-    ? DEFAULT_WORKSPACE_ID
-    : workspaces[0].id;
-  const validWorkspaceIds = new Set(workspaces.map((item) => item.id));
-  const promptIds = new Set(state.prompts.map((prompt) => prompt.uuid));
-  const folderIds = new Set(state.folders.map((folder) => folder.id));
-
-  Object.keys(promptWorkspaces).forEach((uuid) => {
-    if (!promptIds.has(uuid)) delete promptWorkspaces[uuid];
-    else if (!validWorkspaceIds.has(promptWorkspaces[uuid])) promptWorkspaces[uuid] = fallbackWorkspace;
-  });
-  state.prompts.forEach((prompt) => {
-    if (!promptWorkspaces[prompt.uuid]) promptWorkspaces[prompt.uuid] = fallbackWorkspace;
-  });
-
-  Object.keys(folderWorkspaces).forEach((folderId) => {
-    if (!folderIds.has(folderId)) delete folderWorkspaces[folderId];
-    else if (!validWorkspaceIds.has(folderWorkspaces[folderId])) folderWorkspaces[folderId] = fallbackWorkspace;
-  });
-  state.folders.forEach((folder) => {
-    if (!folderWorkspaces[folder.id]) folderWorkspaces[folder.id] = fallbackWorkspace;
-  });
-
-  state.workspaces = workspaces;
-  state.activeWorkspaceId = activeWorkspaceId;
-  state.promptWorkspaces = promptWorkspaces;
-  state.folderWorkspaces = folderWorkspaces;
-  await persistWorkspaceState();
-}
-
 function makeButton(className, text, title, onClick) {
   const button = document.createElement('button');
   button.type = 'button';
@@ -208,7 +115,7 @@ function makeButton(className, text, title, onClick) {
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    Promise.resolve(onClick?.()).catch(console.error);
+    Promise.resolve().then(() => onClick?.()).catch(showError);
   });
   return button;
 }
@@ -223,58 +130,32 @@ function resetLocalView() {
 
 async function switchWorkspace(id) {
   if (id === state.activeWorkspaceId) return;
-  if (!state.workspaces.some((workspace) => workspace.id === id)) return;
-  state.activeWorkspaceId = id;
-  await chrome.storage.local.set({ [ACTIVE_WORKSPACE_KEY]: id });
-  resetLocalView();
-  renderAll();
+  await setActiveWorkspace(id);
+  await refreshData();
 }
 
 async function createWorkspace() {
-  const labels = copy();
-  const name = window.prompt(labels.name, '');
-  if (name == null || !name.trim()) return;
-  const workspace = { id: generateId('workspace'), name: name.trim() };
-  state.workspaces.push(workspace);
-  state.activeWorkspaceId = workspace.id;
-  await persistWorkspaceState();
-  resetLocalView();
-  renderAll();
+  const next = window.prompt(copy().name, '');
+  if (next == null || !next.trim()) return;
+  await saveWorkspace(next.trim());
+  await refreshData();
 }
 
 async function renameWorkspace(id) {
-  const workspace = state.workspaces.find((item) => item.id === id);
+  const workspace = state.workspaces.find(item => item.id === id);
   if (!workspace) return;
-  const labels = copy();
-  const next = window.prompt(labels.name, displayWorkspaceName(workspace));
+  const next = window.prompt(copy().name, displayWorkspaceName(workspace));
   if (next == null || !next.trim()) return;
-  workspace.name = next.trim();
-  await persistWorkspaceState();
-  renderWorkspaceTabs();
+  await renameStoredWorkspace(id, next.trim());
+  await refreshData();
 }
 
 async function removeWorkspace(id) {
-  const labels = copy();
-  if (state.workspaces.length <= 1) {
-    window.alert(labels.keepOne);
-    return;
-  }
-  const workspace = state.workspaces.find((item) => item.id === id);
-  if (!workspace) return;
-  if (!window.confirm(fmt(labels.confirmRemove, { name: displayWorkspaceName(workspace) }))) return;
-
-  const fallback = state.workspaces.find((item) => item.id !== id);
-  Object.keys(state.promptWorkspaces).forEach((uuid) => {
-    if (state.promptWorkspaces[uuid] === id) state.promptWorkspaces[uuid] = fallback.id;
-  });
-  Object.keys(state.folderWorkspaces).forEach((folderId) => {
-    if (state.folderWorkspaces[folderId] === id) state.folderWorkspaces[folderId] = fallback.id;
-  });
-  state.workspaces = state.workspaces.filter((item) => item.id !== id);
-  if (state.activeWorkspaceId === id) state.activeWorkspaceId = fallback.id;
-  await persistWorkspaceState();
-  resetLocalView();
-  renderAll();
+  if (state.workspaces.length <= 1) { window.alert(copy().keepOne); return; }
+  const workspace = state.workspaces.find(item => item.id === id);
+  if (!workspace || !window.confirm(fmt(copy().confirmRemove, { name: displayWorkspaceName(workspace) }))) return;
+  await deleteWorkspace(id);
+  await refreshData();
 }
 
 function renderWorkspaceTabs() {
@@ -350,12 +231,12 @@ async function createFolder() {
   const labels = copy();
   const name = window.prompt(labels.folderName, '');
   if (name == null || !name.trim()) return;
-  const folder = await saveFolder({ name: name.trim() });
-  state.folderWorkspaces[folder.id] = state.activeWorkspaceId;
+  const workspaceId = state.activeWorkspaceId;
+  const folder = await saveFolder({ name: name.trim(), workspaceId });
+  if (state.activeWorkspaceId !== workspaceId) return;
   state.folderOption = folder.id;
-  await chrome.storage.local.set({ [FOLDER_WORKSPACES_KEY]: state.folderWorkspaces });
   await refreshData();
-  renderFolderSelect(folder.id);
+  if (!state.selectedPromptId) renderFolderSelect(folder.id);
 }
 
 async function renameFolder(folder) {
@@ -370,8 +251,6 @@ async function removeFolder(folder) {
   const labels = copy();
   if (!window.confirm(fmt(labels.confirmDeleteFolder, { name: folder.name }))) return;
   await deleteFolder(folder.id);
-  delete state.folderWorkspaces[folder.id];
-  await chrome.storage.local.set({ [FOLDER_WORKSPACES_KEY]: state.folderWorkspaces });
   if (state.folderOption === folder.id) state.folderOption = OPTION_ALL;
   await refreshData();
 }
@@ -481,8 +360,6 @@ function renderPromptList() {
       async () => {
         if (!window.confirm(t('prompt.deleteConfirm', {}, 'Delete prompt?'))) return;
         await deletePrompt(prompt.uuid);
-        delete state.promptWorkspaces[prompt.uuid];
-        await chrome.storage.local.set({ [PROMPT_WORKSPACES_KEY]: state.promptWorkspaces });
         if (state.selectedPromptId === prompt.uuid) clearEditor();
         await refreshData();
       },
@@ -499,7 +376,7 @@ function renderPromptList() {
   el.list.appendChild(fragment);
 }
 
-function renderFolderSelect(selected = null) {
+function renderFolderSelect(selected = undefined) {
   const labels = copy();
   const folders = activeFolders().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   el.folderSelect.replaceChildren();
@@ -516,7 +393,7 @@ function renderFolderSelect(selected = null) {
   const fallback = state.folderOption !== OPTION_ALL && state.folderOption !== OPTION_UNCATEGORIZED
     ? state.folderOption
     : '';
-  const value = selected || fallback;
+  const value = selected === undefined ? fallback : selected;
   el.folderSelect.value = folders.some((folder) => folder.id === value) ? value : '';
 }
 
@@ -550,19 +427,22 @@ function setSaveLabel(editing) {
 }
 
 function openEditor(prompt = null) {
+  editorGeneration += 1;
+  el.tagsInput.value = '';
   state.selectedPromptId = prompt?.uuid || null;
   el.uuid.value = prompt?.uuid || '';
   el.title.value = prompt?.title || '';
   el.content.value = prompt?.content || '';
   tags = uniqueNormalizedTags(prompt?.tags || []);
   renderTags();
-  renderFolderSelect(prompt?.folderId || null);
+  renderFolderSelect(prompt ? prompt.folderId : undefined);
   setSaveLabel(Boolean(prompt));
   renderPromptList();
   el.title.focus();
 }
 
 function clearEditor() {
+  editorGeneration += 1;
   state.selectedPromptId = null;
   el.uuid.value = '';
   el.title.value = '';
@@ -570,68 +450,71 @@ function clearEditor() {
   tags = [];
   el.tagsInput.value = '';
   renderTags();
-  renderFolderSelect(null);
+  renderFolderSelect();
   setSaveLabel(false);
   renderPromptList();
 }
 
+function showError(error) {
+  console.error('[OPM] Manager:', error);
+  if (el.status) el.status.textContent = `${t('prompt.saveError')} ${error.message || ''}`;
+}
+
 async function saveCurrentPrompt(event) {
   event.preventDefault();
+  if (state.saving) return;
   addPendingTag();
   const title = el.title.value.trim();
   const content = el.content.value;
   if (!title || !content.trim()) {
-    window.alert(t('prompt.validationBeforeSave', {}, 'Enter a title and prompt.'));
+    window.alert(t('prompt.validationBeforeSave'));
     return;
   }
-
-  const folderId = el.folderSelect.value || null;
+  // Capture ownership and the editor instance before waiting for the writer.
+  const workspaceId = state.activeWorkspaceId;
+  const generation = editorGeneration;
+  const draft = { title, content, tags: [...tags], folderId: el.folderSelect.value || null };
   const uuid = el.uuid.value;
-  if (uuid) {
-    await updatePrompt(uuid, { title, content, tags, folderId });
-    state.promptWorkspaces[uuid] = state.activeWorkspaceId;
-    await chrome.storage.local.set({ [PROMPT_WORKSPACES_KEY]: state.promptWorkspaces });
+  state.saving = true;
+  el.submit.disabled = true;
+  el.status.textContent = '';
+  try {
+    const result = uuid ? await updatePrompt(uuid, draft) : await savePrompt({ ...draft, workspaceId });
     await refreshData();
-    const updated = state.prompts.find((prompt) => prompt.uuid === uuid);
-    openEditor(updated || null);
-    return;
-  }
-
-  const result = await savePrompt({ title, content, tags, folderId });
-  const prompt = result?.prompt;
-  if (prompt?.uuid) {
-    state.promptWorkspaces[prompt.uuid] = state.activeWorkspaceId;
-    await chrome.storage.local.set({ [PROMPT_WORKSPACES_KEY]: state.promptWorkspaces });
-  }
-  await refreshData();
-  const created = prompt?.uuid ? state.prompts.find((item) => item.uuid === prompt.uuid) : null;
-  openEditor(created || null);
+    if (generation === editorGeneration && workspaceId === state.activeWorkspaceId) {
+      openEditor(uuid ? result : result.prompt);
+    }
+  } catch (error) { showError(error); }
+  finally { state.saving = false; el.submit.disabled = false; }
 }
 
 function renderAll() {
+  const selectedFolder = el.folderSelect.value;
   renderWorkspaceTabs();
   renderFolders();
   renderPromptList();
-  renderFolderSelect(state.prompts.find((p) => p.uuid === state.selectedPromptId)?.folderId || null);
+  // Renders caused by a different item or a language change must not overwrite
+  // the unsaved folder selection in this form.
+  renderFolderSelect(selectedFolder);
   renderTags();
 }
 
-async function refreshData(promptsOverride = null) {
-  const [prompts, folders, settings] = await Promise.all([
-    promptsOverride ? Promise.resolve(promptsOverride) : getPrompts(),
-    getFolders(),
-    chrome.storage.local.get(['enableTags']),
-  ]);
-  state.prompts = Array.isArray(prompts) ? prompts : [];
-  state.folders = Array.isArray(folders) ? folders : [];
-  state.enableTags = settings.enableTags !== false;
-  await ensureWorkspaceState();
-
-  if (state.selectedPromptId && !state.prompts.some((prompt) => prompt.uuid === state.selectedPromptId)) {
-    state.selectedPromptId = null;
-  }
+function applySnapshot(snapshot) {
+  if (snapshot.revision < state.revision) return;
+  const switched = state.activeWorkspaceId !== snapshot.activeWorkspaceId;
+  Object.assign(state, {
+    prompts: snapshot.prompts, folders: snapshot.folders,
+    workspaces: snapshot.workspaces, activeWorkspaceId: snapshot.activeWorkspaceId,
+    revision: snapshot.revision,
+  });
+  if (switched) resetLocalView();
+  if (state.selectedPromptId && !activePrompts().some(p => p.uuid === state.selectedPromptId)) clearEditor();
+  if (state.folderOption !== OPTION_ALL && state.folderOption !== OPTION_UNCATEGORIZED
+      && !activeFolders().some(f => f.id === state.folderOption)) state.folderOption = OPTION_ALL;
   renderAll();
 }
+
+async function refreshData() { applySnapshot(await getStoreSnapshot()); }
 
 function collectElements() {
   Object.assign(el, {
@@ -651,6 +534,8 @@ function collectElements() {
     tagsInput: document.getElementById('prompt-tags-input'),
     saveLabel: document.getElementById('prompt-save-label'),
     cancel: document.getElementById('cancel-edit-button'),
+    submit: document.getElementById('submit-button'),
+    status: document.getElementById('manager-status'),
   });
 }
 
@@ -685,20 +570,21 @@ function wireUi() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => initialize().catch(showError));
+
+async function initialize() {
   await globalThis.OPMI18n?.ready;
-  document.body.classList.add('manager-page', 'is-expanded-tab');
+  document.body.classList.add('manager-page');
   collectElements();
   wireUi();
+  const preferences = await chrome.storage.local.get(SETTINGS_DEFAULTS);
+  state.enableTags = preferences.enableTags;
+  onStoreChanged(applySnapshot);
   await refreshData();
   clearEditor();
-
-  onPromptsChanged((prompts) => {
-    refreshData(Array.isArray(prompts) ? prompts : []).catch(console.error);
-  });
 
   globalThis.OPMI18n?.subscribe?.(() => {
     renderAll();
     setSaveLabel(Boolean(state.selectedPromptId));
   });
-});
+}

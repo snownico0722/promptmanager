@@ -291,7 +291,6 @@ const PanelView = Object.freeze({
   EDIT: 'EDIT',
   EDIT_PROMPT: 'EDIT_PROMPT',
   SETTINGS: 'SETTINGS',
-  CHANGELOG: 'CHANGELOG',
   VARIABLE_INPUT: 'VARIABLE_INPUT'
 });
 window.PanelView = PanelView;
@@ -340,68 +339,6 @@ window.ScrollVisibilityManager = ScrollVisibilityManager;
 const PanelRouter = (() => {
   const state = {
     currentView: null
-  };
-
-  /**
-   * COMMENT: Shared factory for static info views (e.g. changelog) loaded from extension HTML.
-   * @param {{ titleText: string, contentId: string, sourcePath: string }} options
-   * @returns {HTMLElement}
-   */
-  const createInfoView = ({ titleKey, titleText, contentId, sourcePath }) => {
-    const dark = isDarkMode();
-    const container = createEl('div', {
-      className: `opm-form-container opm-${getMode()}`,
-      styles: { padding: '0', display: 'flex', flexDirection: 'column', gap: '6px' }
-    });
-    const title = createEl('div', {
-      attributes: titleKey ? { 'data-i18n': titleKey } : undefined,
-      styles: { fontWeight: 'bold', fontSize: '16px', marginBottom: '6px' },
-      textContent: titleKey ? t(titleKey) : titleText
-    });
-    const info = createEl('div', {
-      id: contentId,
-      styles: {
-        maxHeight: '410px',
-        overflowY: 'auto',
-        padding: '4px',
-        borderRadius: '6px',
-        color: dark ? THEME_COLORS.inputDarkText : THEME_COLORS.inputLightText
-      }
-    });
-    container.append(title, info);
-    let generation = 0;
-    const loadInfo = async () => {
-      const ticket = ++generation;
-      const path = window.OPMI18n.localizedResource(sourcePath);
-      info.textContent = t('changelog.loading');
-      const read = async resource => {
-        const response = await fetch(chrome.runtime.getURL(resource));
-        if (!response.ok) throw new Error(`Changelog HTTP ${response.status}`);
-        return response.text();
-      };
-      try {
-        let html, fallback = false;
-        try { html = await read(path); }
-        catch (error) {
-          if (path === sourcePath) throw error;
-          html = await read(sourcePath);
-          fallback = true;
-        }
-        if (ticket !== generation) return;
-        info.innerHTML = html; // Packaged extension HTML only; never translation parameters.
-        info.lang = fallback ? 'en' : window.OPMI18n.getLanguage();
-        if (fallback) info.prepend(createEl('p', { textContent: t('changelog.englishFallback') }));
-      } catch (error) {
-        if (ticket !== generation) return;
-        info.textContent = t('changelog.error');
-        info.appendChild(createEl('button', { attributes: { type: 'button' }, textContent: t('common.retry'), eventListeners: { click: loadInfo } }));
-        console.warn('[PromptManager] Changelog unavailable:', error);
-      }
-    };
-    info.__opmReloadLocalized = loadInfo;
-    loadInfo();
-    ScrollVisibilityManager.observe(info);
-    return container;
   };
 
   // COMMENT: Central map defining builder + UI rules for each panel view.
@@ -467,17 +404,6 @@ const PanelRouter = (() => {
       panelHeight: 'fixed',
       searchVisible: false,
       description: 'Settings is a standalone form with no search.'
-    },
-    [PanelView.CHANGELOG]: {
-      builder: () => createInfoView({
-        titleKey: 'changelog.title',
-        titleText: 'Changelog',
-        contentId: SELECTORS.CHANGELOG_CONTENT,
-        sourcePath: 'changelog.html'
-      }),
-      panelHeight: 'fixed',
-      searchVisible: false,
-      description: 'Changelog mirrors the help view but sources changelog.html.'
     },
     [PanelView.VARIABLE_INPUT]: {
       builder: (context) => PromptUIManager.createVariableInputForm(context),
@@ -584,10 +510,6 @@ const PanelRouter = (() => {
   return { mount, reset };
 })();
 window.PanelRouter = PanelRouter;
-window.OPMI18n.subscribe(() => {
-  const changelog = document.getElementById(SELECTORS.CHANGELOG_CONTENT);
-  changelog?.__opmReloadLocalized?.();
-});
 
 /* ---------------------------------------------------------------------------
  * [05] Centralized outside-click closer
@@ -602,7 +524,6 @@ const OutsideClickCloser = (() => {
       || e.target.closest(`.${SELECTORS.PROMPT_ITEMS_CONTAINER}`)
       || e.target.closest('.opm-icon-button')
       || e.target.closest('.opm-form-container')
-      || e.target.closest('.opm-opd-catalog-link')
       || e.target.closest('.opm-button')
       // COMMENT: Tag suggestions render in a portal on #opm-root — keep panel open when picking a tag (#71)
       || e.target.closest('.opm-tag-suggestions')
@@ -764,17 +685,8 @@ class PromptStorageManager {
     // COMMENT: Dynamically import the web-accessible module so content-scripts can use it
     const mod = await import(chrome.runtime.getURL('storage/promptStorage.js'));
 
-    // COMMENT: Build a thin adapter to keep current call-sites unchanged
-    this.__ps = {
-      getPrompts: mod.getPrompts,
-      setPrompts: mod.setPrompts,
-      savePrompt: mod.savePrompt,
-      updatePrompt: mod.updatePrompt,
-      deletePrompt: mod.deletePrompt,
-      importPrompts: mod.importPrompts,
-      exportPrompts: mod.exportPrompts
-    };
-    return this.__ps;
+    this.__ps = mod;
+    return mod;
   }
 
   static async getPrompts() {
@@ -787,11 +699,13 @@ class PromptStorageManager {
     return await ps.savePrompt(prompt);
   }
 
-  static async setPrompts(prompts) {
-    // COMMENT: Expose bulk set for reorder use-cases via the unified module
+  static async reorderPrompts(prompts) {
     const ps = await this._ps();
-    return await ps.setPrompts(prompts);
+    return ps.reorderPrompts(prompts.map(p => p.uuid), prompts[0]?.workspaceId);
   }
+  static async deleteAllPrompts(workspaceId) { return (await this._ps()).deleteAllPrompts(workspaceId); }
+  static async removeTagFromPrompts(tag) { return (await this._ps()).removeTagFromPrompts(tag); }
+  static async getWorkspaceId() { return (await (await this._ps()).getStoreSnapshot()).activeWorkspaceId; }
 
   static async mergeImportedPrompts(imported) {
     const ps = await this._ps();
@@ -821,7 +735,10 @@ class PromptStorageManager {
   static async saveKeyboardShortcut(shortcut) { return await PromptStorageManager.setData('keyboardShortcut', shortcut); }
   static async getOnboardingCompleted() { return await PromptStorageManager.getData('onboardingCompleted', false); }
   static async setOnboardingCompleted() { return await PromptStorageManager.setData('onboardingCompleted', true); }
-  static async getDisplayMode() { return await PromptStorageManager.getData('displayMode', 'standard'); }
+  static async getDisplayMode() {
+    const { SETTINGS_DEFAULTS } = await import(chrome.runtime.getURL('settings-defaults.js'));
+    return await PromptStorageManager.getData('displayMode', SETTINGS_DEFAULTS.displayMode);
+  }
   static async saveDisplayMode(mode) { return await PromptStorageManager.setData('displayMode', mode); }
   static async getForceDarkMode() { return await PromptStorageManager.getData('forceDarkMode', false); }
   static async saveForceDarkMode(enabled) { return await PromptStorageManager.setData('forceDarkMode', !!enabled); }
@@ -836,9 +753,10 @@ class PromptStorageManager {
     return await PromptStorageManager.setData('disableOverwrite', !!value);
   }
 
-  // COMMENT: Feature flag for tags in prompt creation UI (off by default)
+  // Shared default also covers upgraded profiles with no preference key.
   static async getEnableTags() {
-    return await PromptStorageManager.getData('enableTags', false);
+    const { SETTINGS_DEFAULTS } = await import(chrome.runtime.getURL('settings-defaults.js'));
+    return await PromptStorageManager.getData('enableTags', SETTINGS_DEFAULTS.enableTags);
   }
   static async saveEnableTags(value) {
     return await PromptStorageManager.setData('enableTags', !!value);
@@ -876,13 +794,6 @@ window.PromptStorageManager = PromptStorageManager;
 
 /* UI Manager */
 class PromptUIManager {
-  // COMMENT: Configuration for the info banner. Toggle 'active' to show/hide.
-  static BANNER_CONFIG = {
-    active: true,
-    // COMMENT: Bump id when banner copy changes so users who dismissed an older banner see the update
-    id: 'info-banner-v3',
-  };
-
   static state = {
     root: null,
     currentMode: null,
@@ -895,7 +806,6 @@ class PromptUIManager {
     suppressNextListRefresh: false,
     listPanelPromptCount: 0,
     listPanelHeight: null,
-    sidebarOpen: false,
   };
 
   static _ensureRoot() {
@@ -925,7 +835,6 @@ class PromptUIManager {
     minHeight: 220,
     baseChrome: 158,
     tagsBar: 34,
-    banner: 56,
     itemsAreaPadding: 28,
     itemsMaxScroll: 350,
     itemHeightList: 32,
@@ -949,13 +858,12 @@ class PromptUIManager {
   }
 
   // COMMENT: Derive a stable list panel height from total prompts, optional chrome, and a max cap.
-  static computeListPanelHeight(promptCount, { hasTagsBar = false, hasBanner = false, isEditMode = false } = {}) {
+  static computeListPanelHeight(promptCount, { hasTagsBar = false, isEditMode = false } = {}) {
     const L = PromptUIManager.LIST_PANEL_LAYOUT;
     const itemHeight = isEditMode ? L.itemHeightEdit : L.itemHeightList;
     const itemsBlock = Math.min(Math.max(promptCount, 0) * itemHeight + L.itemsAreaPadding, L.itemsMaxScroll);
     let height = L.baseChrome + itemsBlock;
     if (hasTagsBar) height += L.tagsBar;
-    if (hasBanner) height += L.banner;
     return Math.min(Math.max(Math.round(height), L.minHeight), L.maxHeight);
   }
 
@@ -968,9 +876,8 @@ class PromptUIManager {
 
     const promptCount = PromptUIManager.state.listPanelPromptCount ?? 0;
     const hasTagsBar = !!panel.querySelector('.opm-tags-filter-bar');
-    const hasBanner = !!panel.querySelector('.opm-info-banner');
     const isEditMode = PromptUIManager.state.listMode === 'edit';
-    const height = PromptUIManager.computeListPanelHeight(promptCount, { hasTagsBar, hasBanner, isEditMode });
+    const height = PromptUIManager.computeListPanelHeight(promptCount, { hasTagsBar, isEditMode });
 
     PromptUIManager.state.listPanelHeight = height;
     el.style.setProperty('--opm-list-height', `${height}px`);
@@ -1001,8 +908,8 @@ class PromptUIManager {
   static async _awaitListLayoutReady() {
     const listEl = qs(`#${SELECTORS.PROMPT_LIST}`);
     const panel = listEl?.querySelector(`#${SELECTORS.PANEL_CONTENT}`);
-    // COMMENT: Skip waiting when tags/banner chrome is already in the DOM (reopen / tag switch).
-    if (panel?.querySelector('.opm-tags-filter-bar') || panel?.querySelector('.opm-info-banner')) {
+    // COMMENT: Skip waiting when tags chrome is already in the DOM (reopen / tag switch).
+    if (panel?.querySelector('.opm-tags-filter-bar')) {
       PromptUIManager._listLayoutReady = null;
       PromptUIManager.syncListPanelHeight(listEl);
       return;
@@ -1423,7 +1330,6 @@ class PromptUIManager {
     const selectors = [
       `.${SELECTORS.PROMPT_ITEMS_CONTAINER}`,
       '.opm-form-container',
-      `#${SELECTORS.CHANGELOG_CONTENT}`,
       '.opm-tags-filter-bar'
     ];
     const ensure = (node) => ScrollVisibilityManager.observe(node);
@@ -1474,77 +1380,7 @@ class PromptUIManager {
     const content = PromptUI.Views.renderPromptList(prompts, { mode });
     const tagsLayoutReady = content.__opmLayoutReady || Promise.resolve();
     
-    // COMMENT: Inject Info Banner if active and not dismissed
-    let bannerLayoutReady = Promise.resolve();
-    if (PromptUIManager.BANNER_CONFIG.active) {
-      bannerLayoutReady = (async () => {
-        try {
-          const dismissed = await PromptStorageManager.getData('dismissedBanners', []);
-          if (dismissed.includes(PromptUIManager.BANNER_CONFIG.id)) return;
-
-          const banner = createEl('div', {
-            className: `opm-info-banner opm-${getMode()}`,
-            styles: {
-              padding: '10px 12px',
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'start',
-              justifyContent: 'space-between',
-              gap: '8px',
-              borderBottom: isDarkMode() ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.06)',
-              backgroundColor: isDarkMode() ? 'rgba(54, 116, 181, 0.15)' : '#ebf8ff', // Tinted primary/blue
-              color: isDarkMode() ? '#E2E8F0' : '#2C5282',
-              flex: '0 0 auto',
-              lineHeight: '1.4'
-            },
-          });
-          const bannerBody = createEl('div', { styles: { flex: '1' } });
-          const bannerMessage = createEl('span');
-          const bannerStrong = createEl('strong', { attributes: { 'data-i18n': 'banner.newLabel' }, textContent: t('banner.newLabel') });
-          const bannerText = createEl('span', { attributes: { 'data-i18n': 'banner.newSiteText' }, textContent: t('banner.newSiteText') });
-          const bannerBreak = document.createElement('br');
-          const bannerReview = createEl('a', {
-            attributes: { 'data-i18n': 'banner.leaveReview', href: 'https://chromewebstore.google.com/detail/open-prompt-manager/gmhaghdbihgenofhnmdbglbkbplolain', target: '_blank', rel: 'noopener noreferrer' },
-            styles: { color: '#3674B5', textDecoration: 'underline' },
-            textContent: t('banner.leaveReview')
-          });
-          bannerMessage.append(bannerStrong, document.createTextNode(' '), bannerText, bannerBreak, bannerReview, document.createTextNode('!'));
-          bannerBody.appendChild(bannerMessage);
-          banner.appendChild(bannerBody);
-
-          const closeBtn = createEl('button', {
-            attributes: { 'data-i18n-aria-label': 'banner.dismiss', 'aria-label': t('banner.dismiss') },
-            innerHTML: '×',
-            styles: {
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              padding: '0 4px', fontSize: '18px', lineHeight: '1', opacity: '0.6',
-              color: 'inherit', display: 'flex', alignItems: 'center'
-            }
-          });
-          closeBtn.addEventListener('mouseenter', () => closeBtn.style.opacity = '1');
-          closeBtn.addEventListener('mouseleave', () => closeBtn.style.opacity = '0.6');
-          closeBtn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            banner.remove();
-            const current = await PromptStorageManager.getData('dismissedBanners', []);
-            if (!current.includes(PromptUIManager.BANNER_CONFIG.id)) {
-              current.push(PromptUIManager.BANNER_CONFIG.id);
-              await PromptStorageManager.setData('dismissedBanners', current);
-            }
-          });
-
-          banner.appendChild(closeBtn);
-          
-          // Insert before the tags bar (if present) or at the top
-          // The content container has: tagsHost, itemsContainer, bottomMenu.
-          content.insertBefore(banner, content.firstChild);
-        } catch (err) {
-          console.error('[PromptManager] Failed to render banner:', err);
-        }
-      })();
-    }
-
-    PromptUIManager._listLayoutReady = Promise.all([tagsLayoutReady, bannerLayoutReady]).then(() => {
+    PromptUIManager._listLayoutReady = Promise.all([tagsLayoutReady]).then(() => {
       PromptUIManager.syncListPanelHeight(listEl);
     });
 
@@ -2163,24 +1999,6 @@ class PromptUIManager {
     PromptUIManager.state.lastPromptsSignature = null;
   }
 
-  // COMMENT: Hide in-page launcher UI while the extension side panel is open in this window.
-  static async setSidePanelOpen(open) {
-    const next = Boolean(open);
-    if (PromptUIManager.state.sidebarOpen === next) return;
-    PromptUIManager.state.sidebarOpen = next;
-
-    if (next) {
-      const listEl = qs(`#${SELECTORS.PROMPT_LIST}`);
-      if (listEl?.classList.contains('opm-visible')) {
-        PromptUIManager.hidePromptList(listEl);
-      }
-      PromptUIManager.cleanupAllUIComponents();
-      return;
-    }
-
-    await PromptUIManager.injectUIForCurrentMode();
-  }
-
   static async refreshDisplayMode() {
     // COMMENT: Coalesce overlapping refreshes (in-page save + storage.onChanged fire together)
     if (PromptUIManager._displayModeRefreshPromise) {
@@ -2188,16 +2006,8 @@ class PromptUIManager {
     }
 
     PromptUIManager._displayModeRefreshPromise = (async () => {
-      if (PromptUIManager.state.sidebarOpen) {
-        PromptUIManager.cleanupAllUIComponents();
-        return;
-      }
       PromptUIManager.cleanupAllUIComponents();
       const prompts = await PromptStorageManager.getPrompts();
-      if (PromptUIManager.state.sidebarOpen) {
-        PromptUIManager.cleanupAllUIComponents();
-        return;
-      }
       await PromptUIManager.injectUIForCurrentMode(prompts, { skipCleanup: true });
 
       PromptUIManager.refreshItemsIfListActive(prompts);
@@ -2230,10 +2040,7 @@ class PromptUIManager {
 
   // COMMENT: Inject the correct UI based on current display mode
   static async injectUIForCurrentMode(prompts, { skipCleanup = false } = {}) {
-    if (PromptUIManager.state.sidebarOpen) return;
     const displayMode = await PromptStorageManager.getDisplayMode();
-    // COMMENT: Side-panel broadcast can arrive during the await above — do not remount over a hide
-    if (PromptUIManager.state.sidebarOpen) return;
 
     if (!skipCleanup) {
       // COMMENT: Skip reinjection when the requested mode is already mounted and healthy
@@ -2254,8 +2061,7 @@ class PromptUIManager {
 
     if (displayMode === 'standard') {
       const data = prompts || await PromptStorageManager.getPrompts();
-      if (PromptUIManager.state.sidebarOpen) return;
-      await PromptUIManager.injectPromptManagerButton(data);
+        await PromptUIManager.injectPromptManagerButton(data);
     } else if (displayMode === 'hotCorner') {
       PromptUIManager.injectHotCorner();
     } else if (displayMode === 'invisible') {
@@ -2375,16 +2181,6 @@ const PromptMediator = (() => {
   if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage && !window.__OPM_INSERT_LISTENER__) {
     window.__OPM_INSERT_LISTENER__ = true;
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === 'OPM_SIDE_PANEL_STATE') {
-        PromptUIManager.setSidePanelOpen(message.open)
-          .then(() => {
-            if (message.open) teardownMutationObserver();
-            else setupMutationObserver();
-            sendResponse({ ok: true });
-          })
-          .catch((error) => sendResponse({ ok: false, error: error?.message || 'side_panel_state_failed' }));
-        return true;
-      }
       if (message?.type !== 'OPM_INSERT_PROMPT_CONTENT') return undefined;
       (async () => {
         try {
@@ -2409,20 +2205,13 @@ const PromptMediator = (() => {
     PromptUIManager.onPromptSelect(state.promptSelectHandler);
   };
 
-  const teardownMutationObserver = () => {
-    if (!state.mutationObserver) return;
-    state.mutationObserver.disconnect();
-    state.mutationObserver = null;
-  };
-
   const setupMutationObserver = () => {
     if (state.mutationObserver) return;
     const target = document.querySelector('main') || document.body;
     if (!target) return;
 
     const ensureUIVisible = debounce(async () => {
-      // COMMENT: Skip work when the side panel is covering this window, or the launcher is already present
-      if (PromptUIManager.state.sidebarOpen) return;
+      // Skip recovery work while a launcher is already present
       if (document.getElementById(SELECTORS.PROMPT_BUTTON_CONTAINER)
         || document.getElementById(SELECTORS.HOT_CORNER_CONTAINER)
         || document.getElementById(SELECTORS.INVISIBLE_LAUNCHER_CONTAINER)) {
@@ -2464,9 +2253,25 @@ const PromptMediator = (() => {
     state.storageWatcherAttached = true;
     (async () => {
       try {
-        const { onPromptsChanged } = await import(chrome.runtime.getURL('storage/promptStorage.js'));
-        onPromptsChanged((prompts) => {
-          // COMMENT: Only refresh items when the list view is active to avoid polluting non-list views
+        const ps = await import(chrome.runtime.getURL('storage/promptStorage.js'));
+        let workspaceId = (await ps.getStoreSnapshot()).activeWorkspaceId;
+        ps.onStoreChanged(store => {
+          const switched = workspaceId !== store.activeWorkspaceId;
+          workspaceId = store.activeWorkspaceId;
+          const prompts = store.prompts.filter(p => p.workspaceId === workspaceId);
+          PromptUIManager.state.lastPromptsSignature = null;
+          if (switched) {
+            // A workspace switch replaces the whole invocation context, including
+            // an open variable/create/edit view and its old closures.
+            state.lastPromptSelectKey = null;
+            PromptUIManager.inVariableInputMode = false;
+            PromptUIManager.activeTagFilter = 'all';
+            const search = document.getElementById(SELECTORS.PROMPT_SEARCH_INPUT);
+            if (search) search.value = '';
+            PanelRouter.reset();
+            const panel = qs(`#${SELECTORS.PROMPT_LIST}`);
+            if (panel?.classList.contains('opm-visible')) PanelRouter.mount(PanelView.LIST);
+          }
           PromptUIManager.refreshItemsIfListActive(prompts);
         });
       } catch (err) {

@@ -1,9 +1,13 @@
+import { describe, it as test } from 'node:test';
+import assert from 'node:assert/strict';
+const expect = value => ({ toBe: expected => assert.equal(value, expected), toEqual: expected => assert.deepEqual(value, expected), toBeTruthy: () => assert.ok(value) });
+import '../src/utils/promptInsertUtils.js';
 const {
   collapseDuplicatedPromptText,
   isQuotedDuplicatePrompt,
   siteConvertsPasteToAttachment,
   normalizeEditorText,
-} = require('../src/utils/promptInsertUtils.js');
+} = globalThis.PromptInsertUtils;
 
 describe('prompt insert duplicate collapse', () => {
   const prompt = 'write an evocative spiritual prose poem based on this PASSAGE:';

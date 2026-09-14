@@ -1,3 +1,4 @@
+import { installStorageWorker } from './storage/storeWorker.js';
 import './i18n.js';
 import { getProviderList } from './llm_providers.js';
 import { getPrompts, onPromptsChanged, savePrompt } from './storage/promptStorage.js';
@@ -7,11 +8,12 @@ import { resolveProviderIconUrl } from './utils/providerIcons.js';
 import {
   expandOriginPatterns,
   hasAnyOriginPermission,
-  urlMatchesOriginPattern,
 } from './utils/originPatterns.js';
 import {
   OPM_DEV_FORCE_ONBOARDING_STORAGE_KEY,
 } from './devFlags.js';
+
+installStorageWorker();
 
 // COMMENT: Single source of truth for dynamically injected content-script bundles.
 const CONTENT_SCRIPT_FILES = [
@@ -133,33 +135,6 @@ async function waitForContentReady(tabId, timeoutMs = 3000) {
 }
 
 /**
- * COMMENT: Reload a tab and wait for load complete. Needed for tabs that existed
- * before the extension was installed or before host permission was granted.
- * @param {number} tabId
- * @param {number} [timeoutMs]
- * @returns {Promise<boolean>}
- */
-function reloadTabAndWait(tabId, timeoutMs = 20000) {
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (ok) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      chrome.tabs.onUpdated.removeListener(onUpdated);
-      resolve(ok);
-    };
-    const onUpdated = (updatedTabId, info) => {
-      if (updatedTabId !== tabId || info.status !== 'complete') return;
-      finish(true);
-    };
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    chrome.tabs.onUpdated.addListener(onUpdated);
-    chrome.tabs.reload(tabId).catch(() => finish(false));
-  });
-}
-
-/**
  * COMMENT: Inject content scripts once per tab. Lock means "in progress", not ready.
  * @param {number} tabId
  * @param {string} [tabUrl]
@@ -271,9 +246,10 @@ async function syncStorageAfterPermissionRevoke(originPatterns) {
 async function tabHasScriptingPermission(url) {
   if (!url || !/^https?:/i.test(url)) return false;
 
-  const origins = await getGrantedOrigins();
-  if (origins.includes('<all_urls>')) return true;
-  return origins.some((origin) => urlMatchesOriginPattern(url, origin));
+  // Ask Chrome instead of testing the URL against a prefix regex: host grants
+  // cover ports and subdomains according to Chrome's own permission semantics.
+  const target = new URL(url);
+  return hasAnyOriginPermission(`${target.protocol}//${target.hostname}/*`);
 }
 
 /**
@@ -349,7 +325,7 @@ async function resolveInsertPayload(message) {
 }
 
 /**
- * COMMENT: Inject (reload once if Chrome blocks preexisting tabs) then run an action.
+ * Inject and run an action. Never reload a user page without explicit consent.
  * @param {chrome.tabs.Tab} tab
  * @param {(tab: chrome.tabs.Tab) => Promise<object>} actionFn
  * @returns {Promise<object>}
@@ -371,37 +347,21 @@ async function withContentScriptsOnTab(tab, actionFn) {
     return actionFn(target);
   };
 
-  let result = await run(tab);
-  if (result?.ok || (result?.error !== 'inject_failed' && result?.error !== 'handler_missing')) {
-    return result;
+  const result = await run(tab);
+  if (result?.error === 'inject_failed' || result?.error === 'handler_missing') {
+    return { ok: false, error: 'reload_required' };
   }
-
-  if (!(await reloadTabAndWait(tab.id))) return result;
-  const updated = await chrome.tabs.get(tab.id).catch(() => null);
-  if (!updated?.id) return result;
-  return run(updated);
+  return result;
 }
 
 // COMMENT: The toolbar now opens the complete manager in a normal browser tab.
-chrome.action.onClicked.addListener(() => {
-  chrome.tabs.create({ url: MANAGER_URL, active: true }).catch((error) => {
+chrome.action.onClicked.addListener((tab) => {
+  chrome.tabs.create({ url: MANAGER_URL, active: true, ...(tab?.id ? { openerTabId: tab.id } : {}) }).catch((error) => {
     console.error('Failed to open full-page manager:', error);
   });
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === 'OPM_CLOSE_EXPANDED_TAB') {
-    const tabId = sender.tab?.id;
-    if (!tabId) {
-      sendResponse({ ok: false, error: 'no_tab' });
-      return true;
-    }
-    chrome.tabs.remove(tabId)
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) => sendResponse({ ok: false, error: error?.message || 'close_failed' }));
-    return true;
-  }
-
   if (message?.type === 'OPM_LAUNCH_PROVIDER_ONBOARDING') {
     (async () => {
       try {
@@ -564,11 +524,7 @@ chrome.permissions.onAdded.addListener(async (permissions) => {
         for (const tab of tabs) {
           if (!tab?.id || !tab.url) continue;
           console.log(`Injecting scripts into tab ${tab.id} (${tab.url})`);
-          const injected = await injectContentScriptsIfNeeded(tab.id, tab.url);
-          // COMMENT: Tabs open before install/grant often cannot be scripted until they reload.
-          if (!injected && tab.active) {
-            await reloadTabAndWait(tab.id);
-          }
+          await injectContentScriptsIfNeeded(tab.id, tab.url);
         }
       } catch (err) {
         console.error(`Failed to query tabs or inject script for origin ${origin}:`, err);

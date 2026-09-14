@@ -1,0 +1,11 @@
+import fs from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const check = spawnSync(process.execPath, ['--test', 'tests/resources.test.mjs'], { cwd: root, stdio: 'inherit' });
+if (check.status !== 0) process.exit(check.status || 1);
+const destination = new URL('../dist/extension/', import.meta.url);
+await fs.rm(destination, { recursive: true, force: true });
+await fs.mkdir(destination, { recursive: true });
+await fs.cp(new URL('../src/', import.meta.url), destination, { recursive: true });
+console.log('Built dist/extension (load unpacked or zip this folder).');

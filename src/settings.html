@@ -2,8 +2,9 @@
 <html data-i18n-pending>
 <head>
   <title data-i18n="settings.title">Settings</title>
-  <link rel="stylesheet" href="sidepanel/styles.css">
-  <link rel="stylesheet" href="manager.css">
+  <link rel="stylesheet" href="shared-ui.css">
+  <link rel="stylesheet" href="settings.css">
+  <script type="module" src="theme.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>html[data-i18n-pending] body { visibility: hidden; animation: opm-i18n-fallback 0s 4s forwards; } @keyframes opm-i18n-fallback { to { visibility: visible; } }</style>
@@ -27,6 +28,18 @@
       <a class="settings-get-started-link" href="permissions/permissions.html" data-i18n="support.getStarted">Get Started</a>
       <span class="pm-subtitle" data-i18n="onboarding.chooseAssistant">Choose an AI Assistant below to get started.</span>
     </div>
+  </section>
+
+  <section class="settings-section" id="custom-sites-section">
+    <h3 class="settings-heading" data-i18n="settings.customSites">Custom websites</h3>
+    <p class="pm-subtitle" data-i18n="settings.customSitesHelp">Choose an open website, allow access, then click its input field.</p>
+    <div class="custom-site-controls">
+      <select id="custom-site-tab" data-i18n-aria-label="settings.targetWebsite" aria-label="Target website"></select>
+      <button type="button" id="custom-site-refresh" data-i18n="settings.refreshTabs">Refresh tabs</button>
+      <button type="button" id="custom-site-pick" class="main" data-i18n="settings.pickInput">Choose input field</button>
+    </div>
+    <p id="custom-site-status" role="status"></p>
+    <button type="button" id="custom-site-reload" hidden data-i18n="settings.reloadTarget">Reload selected website</button>
   </section>
 
   <section class="settings-section">
@@ -140,5 +153,6 @@
 
   <script type="module" src="settings.js"></script>
   <script type="module" src="settings-assistants.js"></script>
+  <script type="module" src="settings-custom-sites.js"></script>
 </body>
 </html>

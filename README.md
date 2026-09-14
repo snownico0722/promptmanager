@@ -9,11 +9,13 @@ A lightweight, open-source Chrome extension for saving, organizing, and insertin
 ### Prompt library
 
 - Click the extension icon to open the **full-page prompt manager**
-- Save, edit, reorder, and delete prompts from the full-page manager or the in-page panel on assistant sites
-- **Tags** with search and filter; tag suggestions on create/edit forms
+- Save, edit, copy, and delete prompts from the full-page manager
+- Independent workspaces and real folders; the in-page panel and context menu follow the active workspace
+- Reorder prompts in the in-page edit panel
+- **Tags** on prompts; the in-page panel also offers tag filtering and suggestions
 - Drag to reorder tags in Settings → **Tag management**
 - **Variables** with `#variable#` syntax — fill in values before inserting
-- **Import / export** full v2 backups (prompts, folders, tag metadata) as JSON
+- **Import / export** full V3 backups (workspaces, prompts, folders, ownership, tag metadata) as JSON
 - **Copy to clipboard** from the manager
 - Right-click a saved prompt in the **context menu** to insert it into the current chat
 - Save selected text to your library via the **context menu**
@@ -23,7 +25,7 @@ A lightweight, open-source Chrome extension for saving, organizing, and insertin
 - Three in-page launcher modes: **floating button**, **hot corner**, or **shortcut only**
 - One-click insert into the chat input, with optional append mode
 - **Custom keyboard shortcut** — record your own open/close combo (default: ⌘⇧P on Mac, Ctrl+M on Windows/Linux)
-- **Custom websites** — pin any site’s chat input
+- **Custom websites** — choose an open website in Settings, grant access, then pick its chat input
 - Remembers the last successful chat input per site
 - Light and dark themes, with optional force-dark mode
 
@@ -74,11 +76,11 @@ You can change the open/close shortcut in Settings → **Record shortcut**. The 
 ## Testing
 
 ```bash
-npm install
-npm test
+npm ci
+npm run check
 ```
 
-Tests use **Jest** (with optional **Puppeteer** helpers). See [TESTING.md](TESTING.md) for details.
+Tests use **Node’s test runner** and **Puppeteer with an installed extension**. See [TESTING.md](TESTING.md) for details.
 
 ## Privacy
 
@@ -87,6 +89,8 @@ Tests use **Jest** (with optional **Puppeteer** helpers). See [TESTING.md](TESTI
 - Your prompt library stays **locally** in the extension
 - Site access is optional and granted per assistant/site
 - No community catalog, public prompt publishing, analytics, or tracking
+
+Build an unpacked release with `npm run build:prod`; the result is `dist/extension/`.
 
 ## License
 

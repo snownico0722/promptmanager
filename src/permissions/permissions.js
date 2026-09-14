@@ -70,15 +70,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     return;
   }
 
-  // COMMENT: Custom sites are pinned from the manager on the target page — show guidance only here.
-  if (anotherWebsiteBtn && anotherWebsiteHint) {
+  if (anotherWebsiteBtn) {
     anotherWebsiteBtn.addEventListener('click', () => {
-      const willShow = anotherWebsiteHint.hidden;
-      anotherWebsiteHint.hidden = !willShow;
-      anotherWebsiteBtn.setAttribute('aria-expanded', willShow ? 'true' : 'false');
-      if (willShow) {
-        anotherWebsiteHint.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+      window.location.href = '../settings.html#custom-sites-section';
     });
   }
 
@@ -198,43 +192,20 @@ document.addEventListener('DOMContentLoaded', async function () {
   });
 
   if (removeAllBtn) {
-    removeAllBtn.addEventListener('click', () => {
-      chrome.storage.local.get(['aiProvidersMap'], (res) => {
-        const currentMap = res && res.aiProvidersMap ? res.aiProvidersMap : {};
-        const allPatterns = Array.from(new Set(
-          Object.values(currentMap)
-            .flatMap((v) => expandOriginPatterns(v && v.urlPattern))
-        ));
-
-        const persistRevokedState = () => {
-          const updated = {};
-          for (const [key, val] of Object.entries(currentMap)) {
-            updated[key] = {
-              ...val,
-              hasPermission: 'No',
-            };
-          }
-          chrome.storage.local.set({
-            aiProvidersMap: updated,
-            pinned_inputs_v1: {},
-            learned_inputs_v1: {},
-          });
-        };
-
-        if (allPatterns.length === 0) {
-          persistRevokedState();
-          return;
+    removeAllBtn.addEventListener('click', async () => {
+      try {
+        const permissions = await chrome.permissions.getAll();
+        if (permissions.origins?.length) {
+          const removed = await chrome.permissions.remove({ origins: permissions.origins });
+          if (!removed) throw new Error('Permission removal failed');
         }
-
-        chrome.permissions.remove({ origins: allPatterns }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('Failed to remove permissions:', chrome.runtime.lastError);
-            alert(t('onboarding.removePermissionsFailed'));
-            return;
-          }
-          persistRevokedState();
-        });
-      });
+        const { aiProvidersMap = {} } = await chrome.storage.local.get(['aiProvidersMap']);
+        for (const provider of Object.values(aiProvidersMap)) provider.hasPermission = 'No';
+        await chrome.storage.local.set({ aiProvidersMap, pinned_inputs_v1: {}, learned_inputs_v1: {} });
+      } catch (error) {
+        console.error(error);
+        alert(t('onboarding.removePermissionsFailed'));
+      }
     });
   }
 
