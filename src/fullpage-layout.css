@@ -1,0 +1,163 @@
+/* Final full-page layout ownership.
+   The legacy sidepanel stylesheet still defines wide-screen grid areas for the old
+   expanded sidebar. The manager is now a normal full-page app, so this file is
+   loaded last and explicitly neutralizes those legacy grid-area/height rules. */
+
+html {
+  width: 100%;
+  height: 100%;
+}
+
+body.manager-page,
+body.is-expanded-tab.manager-page {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100vw !important;
+  max-width: none !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  margin: 0 !important;
+  padding: 12px 16px 16px !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+body.manager-page .manager-page-shell {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  gap: 12px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+body.manager-page .manager-workspace-bar.manager-workspace-tabs-shell {
+  flex: 0 0 auto !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+
+body.manager-page .manager-page-shell > .manager-main-layout,
+body.is-expanded-tab.manager-page .manager-page-shell > .manager-main-layout {
+  /* Critical: .main-layout still receives grid-area:g-main from the legacy
+     sidepanel CSS. Inside the new page-shell that creates an implicit grid and
+     throws the two panes to the right. Reset it completely. */
+  grid-area: auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  align-items: stretch !important;
+  flex: 1 1 0 !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  gap: 16px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+body.manager-page .manager-navigation,
+body.is-expanded-tab.manager-page .manager-navigation {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+body.manager-page .manager-editor,
+body.is-expanded-tab.manager-page .manager-editor {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+body.manager-page .manager-editor #prompt-form {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+body.manager-page .manager-editor #prompt-content,
+body.is-expanded-tab.manager-page .manager-editor #prompt-content {
+  flex: 1 1 0 !important;
+  width: 100% !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+  resize: none !important;
+  box-sizing: border-box !important;
+}
+
+body.manager-page .manager-editor .form-actions {
+  flex: 0 0 auto !important;
+  margin-top: 0 !important;
+}
+
+@media (max-width: 780px) {
+  body.manager-page,
+  body.is-expanded-tab.manager-page {
+    overflow: auto !important;
+  }
+
+  body.manager-page .manager-page-shell {
+    height: auto !important;
+    min-height: calc(100dvh - 28px) !important;
+    overflow: visible !important;
+  }
+
+  body.manager-page .manager-page-shell > .manager-main-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(360px, 44dvh) minmax(480px, 55dvh) !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body.manager-page .manager-navigation,
+  body.is-expanded-tab.manager-page .manager-navigation {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  body.manager-page .manager-editor,
+  body.is-expanded-tab.manager-page .manager-editor {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+}
