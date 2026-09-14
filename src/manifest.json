@@ -35,15 +35,13 @@
         {
             "resources": [
                 "icons/*",
-                "changelog.html",
                 "storage/promptStorage.js",
                 "storage/pinnedInputStorage.js",
                 "storage/learnedInputStorage.js",
                 "utils.js",
                 "utils/tags.js",
                 "llm_providers.json",
-                "locales/*.json",
-                "locales/changelog.zh-CN.html"
+                "locales/*.json"
             ],
             "matches": [
                 "<all_urls>"
