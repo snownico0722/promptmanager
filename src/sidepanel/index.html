@@ -17,6 +17,14 @@
 <body>
   <div class="main-layout manager-main-layout">
     <aside class="sidebar-panel manager-navigation">
+      <nav class="manager-category-bar" aria-label="Prompt categories" role="tablist">
+        <button type="button" class="manager-category-tab is-active" data-manager-category="all" data-label-en="All" data-label-zh="全部" role="tab" aria-selected="true">All</button>
+        <button type="button" class="manager-category-tab" data-manager-category="recent" data-label-en="Recent" data-label-zh="最近" role="tab" aria-selected="false">Recent</button>
+        <button type="button" class="manager-category-tab" data-manager-category="tags" data-label-en="Tags" data-label-zh="标签" role="tab" aria-selected="false">Tags</button>
+        <button type="button" class="manager-category-tab" data-manager-category="folders" data-label-en="Folders" data-label-zh="文件夹" role="tab" aria-selected="false">Folders</button>
+      </nav>
+      <div id="manager-category-options" class="manager-category-options" hidden aria-label="Category filters"></div>
+
       <div class="manager-nav-header">
         <div class="manager-nav-title" data-i18n="prompt.list">Prompt list</div>
         <button type="button" id="create-prompt-btn" class="manager-new-prompt" data-i18n-title="prompt.create" title="Create Prompt" aria-label="Create Prompt">
@@ -60,11 +68,6 @@
           </div>
 
           <ul id="prompt-list" class="manager-prompt-list"></ul>
-
-          <div id="empty-state" class="manager-empty-state" style="display: none">
-            <p data-i18n="prompt.noPrompts">No prompts found</p>
-            <button type="button" id="empty-create-prompt-btn" class="manager-empty-create" data-i18n="prompt.create">Create Prompt</button>
-          </div>
         </div>
       </div>
     </aside>
