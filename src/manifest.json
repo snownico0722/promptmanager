@@ -4,23 +4,19 @@
     "version": "3.0.5",
     "description": "__MSG_extensionDescription__",
     "permissions": [
-        "sidePanel",
         "storage",
         "tabs",
         "scripting",
         "activeTab",
         "contextMenus"
     ],
-    "side_panel": {
-        "default_path": "sidepanel/index.html"
-    },
     "icons": {
         "16": "/icons/icon16.png",
         "48": "/icons/icon48.png",
         "128": "/icons/icon128.png"
     },
     "action": {
-        "default_title": "__MSG_openSidebar__",
+        "default_title": "__MSG_openManager__",
         "default_icon": {
             "16": "/icons/icon16.png",
             "48": "/icons/icon48.png",
@@ -33,16 +29,8 @@
     },
     "host_permissions": [],
     "optional_host_permissions": [
-        "<all_urls>",
-        "https://openpromptdatabase.com/*",
-        "https://www.openpromptdatabase.com/*"
+        "<all_urls>"
     ],
-    "externally_connectable": {
-        "matches": [
-            "https://openpromptdatabase.com/*",
-            "https://www.openpromptdatabase.com/*"
-        ]
-    },
     "web_accessible_resources": [
         {
             "resources": [

@@ -3,11 +3,11 @@
 This document explains how the Chrome extension in `src` is structured and how the main flows work.
 
 - Target: Chrome MV3
-- Core features: side-panel prompt library, in-page launcher (button / hot-corner / invisible), insert into chat composers, `#variable#` fill-in, optional Open Prompt Database catalog, per-site optional host permissions.
+- Core features: full-page prompt library, in-page launcher (button / hot-corner / invisible), insert into chat composers, `#variable#` fill-in, per-site optional host permissions.
 
 ### Directory overview
-- `src/manifest.json`: MV3 manifest (side panel, optional host permissions, no static `content_scripts`).
-- `src/service-worker.js`: permissions, registered content scripts, insert/pin messaging, context menu.
+- `src/manifest.json`: MV3 manifest (toolbar action, optional host permissions, no `side_panel`, no static `content_scripts`).
+- `src/service-worker.js`: toolbar full-page entry point, permissions, registered content scripts, insert/pin messaging, context menu.
 - `src/content.boot.js`: sets the injection lock before the rest of the bundle runs.
 - `src/content.styles.js`: theme tokens, selectors, injected CSS.
 - `src/content.shared.js`: TagService, TagUI, PromptUI helpers.
@@ -17,33 +17,30 @@ This document explains how the Chrome extension in `src` is structured and how t
 - `src/storage/promptStorage.js`: versioned prompts + folders + tags. Dynamic-imported by content scripts.
 - `src/storage/pinnedInputStorage.js` / `learnedInputStorage.js`: per-host composer pins and learned selectors.
 - `src/llm_providers.json` + `src/llm_providers.js`: assistant registry (origins, icons, selectors).
-- `src/sidepanel/*`: side panel library, composer, Assistants, insert-into-active-tab.
+- `src/sidepanel/*`: legacy path name for the full-page manager UI, composer, Assistants, and prompt library. It is no longer registered as a Chrome side panel.
 - `src/permissions/*`: first-run onboarding and per-assistant grant.
-- `src/opd/*`: Open Prompt Database import / publish / catalog bridge.
 - `src/changelog.html`: in-page changelog view.
 
 ## Manifest and injection
 
-Host access is **optional**. `optional_host_permissions` includes `<all_urls>` plus catalog origins. There is no `content_scripts` key; scripts are registered at runtime for granted origins.
+Host access is **optional**. `optional_host_permissions` contains `<all_urls>`. There is no `side_panel` key and no `sidePanel` permission. There is no `content_scripts` key; scripts are registered at runtime for granted origins.
 
 Injection path:
 
-1. On permission grant / worker start, `chrome.scripting.registerContentScripts` registers the bundle (`content.boot.js` → `promptInsertUtils.js` → `inputBoxHandler.js` → `content.styles.js` → `content.shared.js` → `content.js`) for granted http(s) origins, excluding the catalog site.
-2. New navigations then get the bundle at `document_idle` without waking the service worker on every tab.
+1. On permission grant / worker start, `chrome.scripting.registerContentScripts` registers the bundle (`content.boot.js` → `promptInsertUtils.js` → `inputBoxHandler.js` → `content.styles.js` → `content.shared.js` → `content.js`) for granted http(s) origins.
+2. New navigations then get the bundle at `document_idle` without waking the service worker on every tab complete.
 3. Existing tabs (already open when the extension was installed or when access was granted) are injected with `chrome.scripting.executeScript`. Chrome often **cannot** script those tabs until they reload — insert/pin will reload that tab once and retry.
 4. `__openPromptManagerInjected` means injection is in progress. `__OPM_CONTENT_READY__` means the insert listener is registered. The worker waits for ready; it does not treat the lock as success.
 
 `web_accessible_resources` lists storage/utils files so content scripts can `import(chrome.runtime.getURL(...))`.
 
-## Side-panel insert
+## Full-page manager
 
-Clicking a prompt in the side panel sends `OPM_INSERT_PROMPT` to the worker with the active tab from `currentWindow` (the window the side panel is attached to).
+Clicking the extension toolbar icon opens `sidepanel/index.html?expanded=1` as a normal extension tab. The `sidepanel/` directory name is retained only as an internal compatibility path; Chrome no longer exposes a side-panel workspace.
 
-The worker activates the tab, ensures the content script is present (reload fallback for preexisting tabs), then sends `OPM_INSERT_PROMPT_CONTENT`. The content script waits up to 8s for a composer. Insert is verified by whether the prompt text is in the field (overwrite of the same prompt counts as success). A failed write is `insert_failed`, not a silent success.
+The full-page manager is the library/editing workspace. In-page launchers and the context menu remain the fast path for inserting prompts into assistant tabs.
 
-Known assistants that have no composer yet get a toast with an optional **Pick field** action. Custom sites still open the pin picker on `no_input`.
-
-Right-clicking a saved prompt in the page context menu inserts it into that tab (same path), it does not copy to the clipboard.
+Right-clicking a saved prompt in the page context menu inserts it into that tab. It does not copy to the clipboard.
 
 ## Provider registry
 
@@ -55,10 +52,10 @@ To add a provider: add a JSON entry (origins are covered by optional `<all_urls>
 
 ## Content script application
 
-- `PromptUIManager` mounts the in-page launcher. While the side panel is open, that launcher is removed and the page mutation observer is disconnected.
+- `PromptUIManager` mounts the in-page launcher.
 - `PromptMediator` wires list clicks and `OPM_INSERT_PROMPT_CONTENT` to `InputBoxHandler.insertPrompt`.
-- Variables use `#name#`. The side panel and in-page panel both collect values before insert.
-- Display modes: `standard` (floating button), `hotCorner` (default on install), `invisible` (keyboard / side panel only).
+- Variables use `#name#`. The manager and in-page panel both support the same prompt storage.
+- Display modes: `standard` (floating button), `hotCorner` (default on install), `invisible` (keyboard shortcut only).
 
 ## Site input detection (`inputBoxHandler.js`)
 
@@ -68,13 +65,19 @@ Rich editors use `beforeinput` / `execCommand('insertText')` and skip synthetic 
 
 ## Storage (`storage/promptStorage.js`)
 
-Canonical key `prompts_storage`, schema v2: `{ version, prompts, folders }`. Prompt shape: `{ uuid, title, content, tags, folderId, createdAt, updatedAt? }` plus optional OPD metadata. Legacy `prompts` array is mirrored and migrated.
+Canonical key `prompts_storage`, schema v2: `{ version, prompts, folders }`. Prompt shape: `{ uuid, title, content, tags, folderId, createdAt, updatedAt? }`.
+
+Legacy `prompts` array is mirrored and migrated.
+
+## Community catalog removal
+
+Open Prompt Database/community prompt support is no longer part of the product. The manifest does not request catalog hosts, the service worker has no external catalog message handler or publish/import path, onboarding and settings expose no catalog controls, and the manager exposes no Community Prompt or Share action. Two no-op compatibility modules remain only to let the legacy manager module load while its internal dead references are retired; they contain no catalog endpoint, permission request, bridge injection, import, or publish implementation.
 
 ## Permissions and onboarding
 
-First install opens `permissions/permissions.html`. Clicking an assistant requests its origins on that click (required for `sidePanel.open` + `permissions.request` user-gesture rules), then the worker opens the assistant URL and the side panel.
+First install opens `permissions/permissions.html`. Clicking an assistant requests its origins on that click, then the worker opens the assistant URL. The onboarding page no longer exposes a community catalog or Chrome side-panel launcher.
 
-`aiProvidersMap` in `chrome.storage.local` drives Assistants pills in the side panel.
+`aiProvidersMap` in `chrome.storage.local` drives Assistants state in the manager.
 
 ## Extending
 

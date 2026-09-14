@@ -5,7 +5,7 @@
   "extensionDescription": {
     "message": "Save, organize and reuse your best AI prompts across ChatGPT, Claude, Gemini, Grok and more. Free and open source."
   },
-  "openSidebar": {
-    "message": "Open Sidebar"
+  "openManager": {
+    "message": "Open Prompt Manager"
   }
 }
