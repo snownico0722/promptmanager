@@ -4,6 +4,7 @@
   <title>Open Prompt Manager</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="../manager.css" />
+  <link rel="stylesheet" href="../manager-workspaces.css" />
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
@@ -17,13 +18,19 @@
 <body>
   <div class="main-layout manager-main-layout">
     <aside class="sidebar-panel manager-navigation">
+      <section class="manager-workspace-bar" aria-label="Workspace">
+        <span id="manager-workspace-label" class="manager-workspace-label">Workspace</span>
+        <select id="manager-workspace-select" class="manager-workspace-select" aria-label="Workspace"></select>
+        <button type="button" id="manager-workspace-add" class="manager-workspace-action" aria-label="New workspace" title="New workspace">+</button>
+        <button type="button" id="manager-workspace-rename" class="manager-workspace-action" aria-label="Rename workspace" title="Rename workspace">✎</button>
+        <button type="button" id="manager-workspace-delete" class="manager-workspace-action manager-workspace-action-danger" aria-label="Delete workspace" title="Delete workspace">×</button>
+      </section>
+
       <nav class="manager-category-bar" aria-label="Prompt categories" role="tablist">
         <button type="button" class="manager-category-tab is-active" data-manager-category="all" data-label-en="All" data-label-zh="全部" role="tab" aria-selected="true">All</button>
-        <button type="button" class="manager-category-tab" data-manager-category="recent" data-label-en="Recent" data-label-zh="最近" role="tab" aria-selected="false">Recent</button>
-        <button type="button" class="manager-category-tab" data-manager-category="tags" data-label-en="Tags" data-label-zh="标签" role="tab" aria-selected="false">Tags</button>
         <button type="button" class="manager-category-tab" data-manager-category="folders" data-label-en="Folders" data-label-zh="文件夹" role="tab" aria-selected="false">Folders</button>
       </nav>
-      <div id="manager-category-options" class="manager-category-options" hidden aria-label="Category filters"></div>
+      <div id="manager-category-options" class="manager-category-options manager-folder-options" hidden aria-label="Folder filters"></div>
 
       <div class="manager-nav-header">
         <div class="manager-nav-title" data-i18n="prompt.list">Prompt list</div>
@@ -40,6 +47,10 @@
             <input type="hidden" id="prompt-uuid" />
             <input type="text" id="prompt-title" class="opm-input-field" data-i18n-placeholder="prompt.title" placeholder="Prompt Title" required />
             <textarea id="prompt-content" class="opm-textarea-field" data-i18n-placeholder="prompt.contentPlaceholder" placeholder="Enter your prompt here - Use #variablename# for dynamic values." required></textarea>
+            <div class="manager-prompt-folder-field">
+              <label id="manager-prompt-folder-label" for="manager-prompt-folder-select">Folder</label>
+              <select id="manager-prompt-folder-select" class="opm-input-field manager-prompt-folder-select"></select>
+            </div>
             <div id="prompt-tags-host" class="prompt-tags-host" hidden></div>
             <div class="form-actions">
               <button class="main" type="submit" id="submit-button">
