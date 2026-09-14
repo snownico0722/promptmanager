@@ -28,6 +28,7 @@ const state = {
 const el = {};
 let tags = [];
 let editorGeneration = 0;
+let editorRevision = 0;
 
 function t(key, params, fallback = key) {
   return globalThis.OPMI18n?.t?.(key, params, fallback) ?? fallback;
@@ -397,6 +398,10 @@ function renderFolderSelect(selected = undefined) {
   el.folderSelect.value = folders.some((folder) => folder.id === value) ? value : '';
 }
 
+function markEditorDirty() {
+  editorRevision += 1;
+}
+
 function renderTags() {
   el.tagsHost.hidden = !state.enableTags;
   el.tagsPills.replaceChildren();
@@ -406,6 +411,7 @@ function renderTags() {
     pill.textContent = tag;
     pill.appendChild(makeButton('spm-tag-remove', '×', t('common.delete', {}, 'Delete'), () => {
       tags = tags.filter((item) => item !== tag);
+      markEditorDirty();
       renderTags();
     }));
     el.tagsPills.appendChild(pill);
@@ -417,6 +423,7 @@ function addPendingTag() {
   el.tagsInput.value = '';
   if (!value) return;
   tags = uniqueNormalizedTags([...tags, value]);
+  markEditorDirty();
   renderTags();
 }
 
@@ -428,6 +435,7 @@ function setSaveLabel(editing) {
 
 function openEditor(prompt = null) {
   editorGeneration += 1;
+  editorRevision = 0;
   el.tagsInput.value = '';
   state.selectedPromptId = prompt?.uuid || null;
   el.uuid.value = prompt?.uuid || '';
@@ -443,6 +451,7 @@ function openEditor(prompt = null) {
 
 function clearEditor() {
   editorGeneration += 1;
+  editorRevision = 0;
   state.selectedPromptId = null;
   el.uuid.value = '';
   el.title.value = '';
@@ -473,6 +482,7 @@ async function saveCurrentPrompt(event) {
   // Capture ownership and the editor instance before waiting for the writer.
   const workspaceId = state.activeWorkspaceId;
   const generation = editorGeneration;
+  const revision = editorRevision;
   const draft = { title, content, tags: [...tags], folderId: el.folderSelect.value || null };
   const uuid = el.uuid.value;
   state.saving = true;
@@ -480,9 +490,20 @@ async function saveCurrentPrompt(event) {
   el.status.textContent = '';
   try {
     const result = uuid ? await updatePrompt(uuid, draft) : await savePrompt({ ...draft, workspaceId });
+    const savedPrompt = uuid ? result : result.prompt;
     await refreshData();
     if (generation === editorGeneration && workspaceId === state.activeWorkspaceId) {
-      openEditor(uuid ? result : result.prompt);
+      if (revision === editorRevision) {
+        openEditor(savedPrompt);
+      } else if (!uuid && savedPrompt?.uuid) {
+        // The first save created an identity, but the user kept typing while the
+        // worker was writing. Bind the live draft to that identity without
+        // overwriting any newer title/content/tags/folder edits.
+        state.selectedPromptId = savedPrompt.uuid;
+        el.uuid.value = savedPrompt.uuid;
+        setSaveLabel(true);
+        renderPromptList();
+      }
     }
   } catch (error) { showError(error); }
   finally { state.saving = false; el.submit.disabled = false; }
@@ -544,6 +565,10 @@ function wireUi() {
     state.workspaceEditing = !state.workspaceEditing;
     renderWorkspaceTabs();
   });
+  el.title.addEventListener('input', markEditorDirty);
+  el.content.addEventListener('input', markEditorDirty);
+  el.folderSelect.addEventListener('change', markEditorDirty);
+  el.tagsInput.addEventListener('input', markEditorDirty);
   el.search.addEventListener('input', () => {
     state.search = el.search.value || '';
     renderPromptList();
@@ -557,6 +582,7 @@ function wireUi() {
       addPendingTag();
     } else if (event.key === 'Backspace' && !el.tagsInput.value && tags.length) {
       tags = tags.slice(0, -1);
+      markEditorDirty();
       renderTags();
     }
   });

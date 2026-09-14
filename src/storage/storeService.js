@@ -99,6 +99,24 @@ function findPrompt(store, uuid) {
   return p;
 }
 
+const modifiedTime = item => {
+  const value = Date.parse(item?.updatedAt || item?.createdAt || '');
+  return Number.isFinite(value) ? value : 0;
+};
+
+function importedCollisionId(kind, workspace, sourceId) {
+  return `__opm_import__${kind}__${encodeURIComponent(workspace)}__${encodeURIComponent(sourceId)}`;
+}
+
+function resolveImportedId(items, key, sourceId, workspace, kind) {
+  const existing = items.find(item => item[key] === sourceId);
+  if (!existing || existing.workspaceId === workspace) return sourceId;
+  const stable = importedCollisionId(kind, workspace, sourceId);
+  const stableExisting = items.find(item => item[key] === stable);
+  if (!stableExisting || stableExisting.workspaceId === workspace) return stable;
+  throw new Error(`Import ${kind} ID collision`);
+}
+
 function importInto(store, payload) {
   const legacy = Array.isArray(payload) || payload?.version !== VERSION;
   if (!Array.isArray(payload) && (!payload || typeof payload !== 'object' || !Array.isArray(payload.prompts))) throw new Error('Invalid backup');
@@ -124,8 +142,8 @@ function importInto(store, payload) {
   const folderMap = new Map();
   const importedFolders = rawFolders.map(f => {
     const workspace = legacy ? target : workspaceId(store, f.workspaceId);
-    const existing = store.folders.find(x => x.id === f.id);
-    const nextId = existing && existing.workspaceId !== workspace ? generateUUID() : id(f.id);
+    const sourceId = id(f.id);
+    const nextId = resolveImportedId(store.folders, 'id', sourceId, workspace, 'folder');
     folderMap.set(f.id, nextId);
     return { id: nextId, name: name(f.name), workspaceId: workspace, parentId: f.parentId || null, createdAt: f.createdAt || now(), ...(f.updatedAt ? { updatedAt: f.updatedAt } : {}) };
   });
@@ -136,16 +154,15 @@ function importInto(store, payload) {
     if (!parent) f.parentId = null;
     const existing = store.folders.find(x => x.id === f.id);
     if (!existing) store.folders.push(f);
-    else if (wasEmpty) Object.assign(existing, f);
+    else if (wasEmpty || modifiedTime(f) > modifiedTime(existing)) Object.assign(existing, f);
   }
   const incoming = rawPrompts.map(p => {
     const workspace = legacy ? target : workspaceId(store, p.workspaceId);
-    const uuid = id(p.uuid || p.id);
-    const existing = store.prompts.find(x => x.uuid === uuid);
+    const sourceUuid = id(p.uuid || p.id);
+    const uuid = resolveImportedId(store.prompts, 'uuid', sourceUuid, workspace, 'prompt');
     const mappedFolder = folderMap.get(p.folderId) || p.folderId;
     return {
-      uuid: existing && existing.workspaceId !== workspace ? generateUUID() : uuid,
-      ...promptFields(p), workspaceId: workspace,
+      uuid, ...promptFields(p), workspaceId: workspace,
       folderId: store.folders.some(f => f.id === mappedFolder && f.workspaceId === workspace) ? mappedFolder : null,
       createdAt: p.createdAt || now(), ...(p.updatedAt ? { updatedAt: p.updatedAt } : {}),
     };

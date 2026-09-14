@@ -132,3 +132,51 @@ test('delete-all and remove-tag affect only the selected workspace', async () =>
   await r.run('deleteAllPrompts'); assert.equal((await r.run('prompts')).length, 0);
   assert.deepEqual((await r.run('prompts', { allWorkspaces: true }))[0].tags, ['t']);
 });
+
+
+test('explicit destructive workspace IDs do not follow a later active-workspace switch', async () => {
+  const r = setup();
+  await r.run('savePrompt', prompt('A', { uuid: 'a' }));
+  const b = await r.run('saveWorkspace', { name: 'B' });
+  await r.run('savePrompt', prompt('B', { uuid: 'b', workspaceId: b.id }));
+  const confirmedWorkspace = 'workspace-default';
+  await r.run('switchWorkspace', { id: b.id });
+  await r.run('deleteAllPrompts', { workspaceId: confirmedWorkspace });
+  assert.equal((await r.run('prompts', { workspaceId: confirmedWorkspace })).length, 0);
+  assert.deepEqual((await r.run('prompts', { workspaceId: b.id })).map(p => p.title), ['B']);
+});
+
+test('newer imported folder metadata updates an existing folder', async () => {
+  const r = setup();
+  const folder = await r.run('saveFolder', { id: 'folder-shared', name: 'Old name' });
+  const backup = await r.run('export');
+  const importedFolder = backup.folders.find(f => f.id === folder.id);
+  importedFolder.name = 'New name';
+  importedFolder.updatedAt = '2099-01-01T00:00:00.000Z';
+  await r.run('import', { payload: backup });
+  assert.equal((await r.run('folders'))[0].name, 'New name');
+});
+
+test('reimporting a legacy backup into another workspace reuses stable collision IDs', async () => {
+  const r = setup();
+  await r.run('saveFolder', { id: 'shared-folder', name: 'Default folder' });
+  await r.run('savePrompt', prompt('Default prompt', { uuid: 'shared-prompt', folderId: 'shared-folder' }));
+  const b = await r.run('saveWorkspace', { name: 'B' });
+  const legacy = {
+    version: 2,
+    folders: [{ id: 'shared-folder', name: 'Imported folder', createdAt: '2025-01-01T00:00:00.000Z' }],
+    prompts: [{ uuid: 'shared-prompt', ...prompt('Imported prompt'), folderId: 'shared-folder', createdAt: '2025-01-01T00:00:00.000Z' }],
+  };
+  await r.run('import', { payload: legacy });
+  const firstPrompts = await r.run('prompts', { workspaceId: b.id });
+  const firstFolders = await r.run('folders', { workspaceId: b.id });
+  assert.equal(firstPrompts.length, 1); assert.equal(firstFolders.length, 1);
+  assert.equal(firstPrompts[0].folderId, firstFolders[0].id);
+  await r.run('import', { payload: legacy });
+  const secondPrompts = await r.run('prompts', { workspaceId: b.id });
+  const secondFolders = await r.run('folders', { workspaceId: b.id });
+  assert.equal(secondPrompts.length, 1); assert.equal(secondFolders.length, 1);
+  assert.equal(secondPrompts[0].uuid, firstPrompts[0].uuid);
+  assert.equal(secondFolders[0].id, firstFolders[0].id);
+  assert.equal((await r.run('prompts', { workspaceId: 'workspace-default' }))[0].title, 'Default prompt');
+});

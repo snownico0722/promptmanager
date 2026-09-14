@@ -131,6 +131,30 @@ try {
   await waitUntil(async () => (await store(manager, 'prompts')).find(p => p.uuid === created.uuid).folderId === null, 'Could not detach folder');
   record('Prompt CRUD and folder assignment/detachment, including a language change');
 
+  // A save result must not overwrite text typed while that save is still in flight.
+  const patchedSendMessage = await manager.evaluate(() => {
+    const original = chrome.runtime.sendMessage.bind(chrome.runtime);
+    window.__opmOriginalSendMessage = original;
+    const delayed = async (message, ...args) => {
+      if (message?.type === 'OPM_STORE' && message.action === 'updatePrompt') {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      return original(message, ...args);
+    };
+    chrome.runtime.sendMessage = delayed;
+    return chrome.runtime.sendMessage === delayed;
+  });
+  assert.equal(patchedSendMessage, true, 'Could not install save-delay test shim');
+  await manager.click('#submit-button');
+  await manager.type('#prompt-content', ' typed-during-save');
+  await delay(450);
+  assert.equal(await manager.$eval('#prompt-content', el => el.value.endsWith(' typed-during-save')), true);
+  assert.equal((await store(manager, 'prompts')).find(p => p.uuid === created.uuid).content.endsWith(' typed-during-save'), false);
+  await manager.click('#submit-button');
+  await waitUntil(async () => (await store(manager, 'prompts')).find(p => p.uuid === created.uuid).content.endsWith(' typed-during-save'), 'Newer typing did not save on the next submit');
+  await manager.evaluate(() => { chrome.runtime.sendMessage = window.__opmOriginalSendMessage; delete window.__opmOriginalSendMessage; });
+  record('Typing during an in-flight save stays in the editor and saves on the next submit');
+
   const otherManager = await pageAt(base + 'sidepanel/index.html');
   await otherManager.waitForSelector('#manager-workspace-tabs button');
   await Promise.all(Array.from({ length: 12 }, (_, i) => store(i % 2 ? manager : otherManager, 'savePrompt', { title: 'Concurrent ' + i, content: 'Value', workspaceId: 'workspace-default' })));
@@ -181,6 +205,11 @@ try {
       if (op === 'list') return window.PanelRouter.mount(window.PanelView.LIST);
       if (op === 'create') return window.PanelRouter.mount(window.PanelView.CREATE);
       if (op === 'settings') return window.PanelRouter.mount(window.PanelView.SETTINGS);
+      if (op === 'hide') {
+        const list = document.getElementById(window.SELECTORS.PROMPT_LIST);
+        window.PromptUIManager.hidePromptList(list);
+        return true;
+      }
       if (op === 'prompts') return window.PromptStorageManager.getPrompts();
     } });
     return result[0]?.result;
@@ -192,6 +221,24 @@ try {
   await host.click('#opm-root .opm-prompt-list-item');
   await host.waitForSelector('#opm-root .opm-variable-row textarea');
   await host.waitForFunction(() => !document.querySelector('#opm-root .opm-resizing'));
+
+  // Hide a B-workspace variable form, switch to A elsewhere, then reopen via the
+  // hot corner. The hidden form must be discarded rather than resurrected.
+  await inContent('hide');
+  await host.waitForFunction(() => !document.querySelector('#opm-root .opm-prompt-list')?.classList.contains('opm-visible'));
+  await store(manager, 'switchWorkspace', { id: 'workspace-default' });
+  await waitUntil(async () => (await inContent('prompts')).length === 14, 'Content did not observe hidden-panel workspace switch');
+  await host.hover('#opm-hot-corner-container');
+  await host.waitForFunction(() => document.querySelector('#opm-root .opm-prompt-list')?.classList.contains('opm-visible'));
+  assert.equal(await host.evaluate(() => document.querySelectorAll('#opm-root .opm-variable-input-form, #opm-root .opm-edit-prompt-form').length), 0);
+  assert.equal(await host.evaluate(() => document.querySelectorAll('#opm-root .opm-prompt-list-item').length), 14);
+  record('Hidden in-page forms are discarded when the active workspace changes');
+
+  await store(manager, 'switchWorkspace', { id: 'b' });
+  await waitUntil(async () => (await inContent('prompts')).length === 1, 'Content did not switch back to B');
+  await inContent('list');
+  await host.click('#opm-root .opm-prompt-list-item');
+  await host.waitForSelector('#opm-root .opm-variable-row textarea');
   await host.bringToFront();
   await host.type('#opm-root .opm-variable-row textarea', 'World');
   assert.equal(await host.$eval('#opm-root .opm-variable-row textarea', el => el.value), 'World');
@@ -212,6 +259,9 @@ try {
   await waitUntil(async () => (await inContent('prompts')).length === 14, 'Content library did not follow workspace');
   await host.screenshot({ path: path.join(output, 'in-page.png') });
   record('Custom-site picker, real content script, variable insertion and live workspace isolation');
+
+  record('Destructive workspace binding is covered by resource and store tests');
+
   assert.deepEqual(errors, []);
   record('No uncaught page errors across manager/settings/host');
 } finally {

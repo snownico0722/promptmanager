@@ -2262,15 +2262,21 @@ const PromptMediator = (() => {
           PromptUIManager.state.lastPromptsSignature = null;
           if (switched) {
             // A workspace switch replaces the whole invocation context, including
-            // an open variable/create/edit view and its old closures.
+            // hidden variable/create/edit forms. Reset the panel scaffolding even
+            // while hidden so the next hot-corner hover cannot revive stale
+            // closures from the previous workspace.
             state.lastPromptSelectKey = null;
             PromptUIManager.inVariableInputMode = false;
             PromptUIManager.activeTagFilter = 'all';
             const search = document.getElementById(SELECTORS.PROMPT_SEARCH_INPUT);
             if (search) search.value = '';
-            PanelRouter.reset();
             const panel = qs(`#${SELECTORS.PROMPT_LIST}`);
-            if (panel?.classList.contains('opm-visible')) PanelRouter.mount(PanelView.LIST);
+            const wasVisible = panel?.classList.contains('opm-visible');
+            window.TagUI?.destroyOpenInputs?.();
+            window.PromptUI?.abortTransientListeners?.();
+            PanelRouter.reset();
+            PromptUIManager.resetPromptListContainer();
+            if (wasVisible) PanelRouter.mount(PanelView.LIST);
           }
           PromptUIManager.refreshItemsIfListActive(prompts);
         });

@@ -1,5 +1,5 @@
 import { exportPrompts, importPrompts } from './importExport.js';
-import { getPrompts, deleteAllPrompts as clearWorkspacePrompts, removeTagFromPrompts } from './storage/promptStorage.js';
+import { getPrompts, getStoreSnapshot, deleteAllPrompts as clearWorkspacePrompts, removeTagFromPrompts } from './storage/promptStorage.js';
 import { getAllPinnedInputs, removePinnedForHostname } from './storage/pinnedInputStorage.js';
 import { removeLearnedForHostname } from './storage/learnedInputStorage.js';
 import {
@@ -300,17 +300,15 @@ async function renderTagManagement() {
       window.OPMI18n.bind(removeBtn, 'tags.removeNamed', { tag }, 'aria-label');
       removeBtn.textContent = '×';
       removeBtn.addEventListener('click', async () => {
-        if (!confirm(t('tags.removeConfirm', { tag }))) return;
-        const nextPrompts = await removeTagFromPrompts(tag);
-        counts = computeTagCounts(nextPrompts);
-        finalOrder = finalOrder.filter(t => t !== tag);
-        if (tagMgmtState) {
-          tagMgmtState.counts = counts;
-          tagMgmtState.finalOrder = finalOrder;
-        }
-        await persistOrder();
-        render();
-        emptyEl.hidden = finalOrder.length > 0;
+        const snapshot = await getStoreSnapshot();
+        const workspaceId = snapshot.activeWorkspaceId;
+        const workspace = snapshot.workspaces.find(item => item.id === workspaceId);
+        if (!confirm(t('tags.removeConfirmWorkspace', { tag, workspace: workspace?.name || '' }))) return;
+        await removeTagFromPrompts(tag, workspaceId);
+        // The active workspace may have changed while the confirmation dialog was
+        // open in another window. Re-render from the latest snapshot instead of
+        // applying the deleted workspace's counts to the new one.
+        await renderTagManagement();
       });
 
       pill.append(handle, label, removeBtn);
@@ -590,8 +588,13 @@ function initLanguagePicker() {
 }
 
 async function deleteAllPrompts() {
-  if (confirm(t('settings.deleteAllConfirm'))) {
-    await clearWorkspacePrompts();
+  const snapshot = await getStoreSnapshot();
+  const workspaceId = snapshot.activeWorkspaceId;
+  const workspace = snapshot.workspaces.find(item => item.id === workspaceId);
+  if (confirm(t('settings.deleteAllConfirmWorkspace', { workspace: workspace?.name || '' }))) {
+    // Delete the workspace the user actually confirmed, even if another manager
+    // switches the global active workspace while this dialog is open.
+    await clearWorkspacePrompts(workspaceId);
     setImportExportStatus('settings.allDeleted');
     renderTagManagement().catch(console.error);
   }

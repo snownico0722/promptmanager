@@ -35,3 +35,10 @@ test('only the worker store owns canonical writes; no array replacement API rema
     assert.doesNotMatch(fs.readFileSync(path.join(root, name), 'utf8'), /setPrompts|opmManager\w+V1/);
   }
 });
+
+
+test('settings destructive actions keep the workspace that was confirmed', () => {
+  const source = fs.readFileSync(path.join(root, 'settings.js'), 'utf8');
+  assert.match(source, /const workspaceId = snapshot\.activeWorkspaceId;[\s\S]*clearWorkspacePrompts\(workspaceId\)/);
+  assert.match(source, /const workspaceId = snapshot\.activeWorkspaceId;[\s\S]*removeTagFromPrompts\(tag, workspaceId\)/);
+});
