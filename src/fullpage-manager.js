@@ -1,6 +1,6 @@
-// Full-page manager behavior layered on top of the legacy sidepanel controller.
-// Main-page responsibilities here: workspaces, real folder CRUD, folder assignment,
-// prompt navigation, and keeping prompt rows scoped to the active workspace.
+// Full-page manager controller.
+// The legacy sidepanel controller still owns prompt CRUD/form wiring; this file owns
+// the full-page workspace, folder, navigation, and placement behavior directly.
 import {
   deleteFolder,
   getFolders,
@@ -11,8 +11,6 @@ import {
   updateFolder,
 } from './storage/promptStorage.js';
 
-const CATEGORY_ALL = 'all';
-const CATEGORY_FOLDERS = 'folders';
 const OPTION_ALL = '__all__';
 const OPTION_UNCATEGORIZED = '__uncategorized__';
 const DEFAULT_WORKSPACE_ID = 'workspace-default';
@@ -23,7 +21,6 @@ const PROMPT_WORKSPACES_KEY = 'opmManagerPromptWorkspacesV1';
 const FOLDER_WORKSPACES_KEY = 'opmManagerFolderWorkspacesV1';
 
 const managerState = {
-  category: CATEGORY_ALL,
   folderOption: OPTION_ALL,
   prompts: [],
   folders: [],
@@ -33,6 +30,7 @@ const managerState = {
   promptWorkspaces: {},
   folderWorkspaces: {},
   pendingPlacement: null,
+  workspaceEditing: false,
 };
 
 function isChineseUi() {
@@ -43,17 +41,17 @@ function isChineseUi() {
 function copy() {
   return isChineseUi()
     ? {
-        workspace: '工作区',
-        defaultWorkspace: '默认工作区',
-        newWorkspace: '新建工作区',
-        renameWorkspace: '重命名工作区',
-        deleteWorkspace: '删除工作区',
-        workspaceName: '工作区名称',
-        cannotDeleteOnlyWorkspace: '至少需要保留一个工作区。',
-        confirmDeleteWorkspace: '删除工作区“{name}”？其中的提示词和文件夹会移动到其他工作区。',
-        folders: '文件夹',
+        edit: '编辑',
+        done: '完成',
+        create: '新建',
+        rename: '重命名',
+        remove: '删除',
+        defaultName: '默认',
+        name: '名称',
+        keepOne: '至少需要保留一个。',
+        confirmRemove: '删除“{name}”？其中内容会移动到其他项。',
         noFolder: '无文件夹',
-        allFolders: '全部文件夹',
+        all: '全部',
         uncategorized: '未分类',
         newFolder: '新建文件夹',
         renameFolder: '重命名文件夹',
@@ -62,17 +60,17 @@ function copy() {
         confirmDeleteFolder: '删除文件夹“{name}”？其中的提示词会变为未分类。',
       }
     : {
-        workspace: 'Workspace',
-        defaultWorkspace: 'Default workspace',
-        newWorkspace: 'New workspace',
-        renameWorkspace: 'Rename workspace',
-        deleteWorkspace: 'Delete workspace',
-        workspaceName: 'Workspace name',
-        cannotDeleteOnlyWorkspace: 'At least one workspace is required.',
-        confirmDeleteWorkspace: 'Delete workspace “{name}”? Its prompts and folders will move to another workspace.',
-        folders: 'Folder',
+        edit: 'Edit',
+        done: 'Done',
+        create: 'New',
+        rename: 'Rename',
+        remove: 'Delete',
+        defaultName: 'Default',
+        name: 'Name',
+        keepOne: 'At least one must remain.',
+        confirmRemove: 'Delete “{name}”? Its contents will move to another item.',
         noFolder: 'No folder',
-        allFolders: 'All folders',
+        all: 'All',
         uncategorized: 'Uncategorized',
         newFolder: 'New folder',
         renameFolder: 'Rename folder',
@@ -100,10 +98,14 @@ function refreshPromptMaps() {
   );
 }
 
-function activeWorkspace() {
-  return managerState.workspaces.find((item) => item.id === managerState.activeWorkspaceId)
-    || managerState.workspaces[0]
-    || null;
+function displayWorkspaceName(workspace) {
+  if (!workspace) return '';
+  const name = String(workspace.name || '').trim();
+  if (workspace.id === DEFAULT_WORKSPACE_ID
+    && ['默认工作区', 'Default workspace', '默认', 'Default'].includes(name)) {
+    return copy().defaultName;
+  }
+  return name || copy().defaultName;
 }
 
 function promptWorkspaceId(promptUuid) {
@@ -147,10 +149,10 @@ async function ensureWorkspaceState(prompts, folders) {
   let workspaces = Array.isArray(stored[WORKSPACES_KEY])
     ? stored[WORKSPACES_KEY]
         .filter((item) => item && typeof item.id === 'string' && typeof item.name === 'string')
-        .map((item) => ({ id: item.id, name: item.name.trim() || labels.defaultWorkspace }))
+        .map((item) => ({ id: item.id, name: item.name.trim() || labels.defaultName }))
     : [];
   if (workspaces.length === 0) {
-    workspaces = [{ id: DEFAULT_WORKSPACE_ID, name: labels.defaultWorkspace }];
+    workspaces = [{ id: DEFAULT_WORKSPACE_ID, name: labels.defaultName }];
   }
 
   let activeWorkspaceId = stored[ACTIVE_WORKSPACE_KEY];
@@ -197,58 +199,14 @@ async function ensureWorkspaceState(prompts, folders) {
   await persistWorkspaceState();
 }
 
-function localizeStaticUi() {
-  const labels = copy();
-  const zh = isChineseUi();
-  document.querySelectorAll('.manager-category-tab').forEach((button) => {
-    button.textContent = zh ? button.dataset.labelZh : button.dataset.labelEn;
-  });
-
-  const workspaceLabel = document.getElementById('manager-workspace-label');
-  if (workspaceLabel) workspaceLabel.textContent = labels.workspace;
-  const folderLabel = document.getElementById('manager-prompt-folder-label');
-  if (folderLabel) folderLabel.textContent = labels.folders;
-
-  const titleMap = [
-    ['manager-workspace-add', labels.newWorkspace],
-    ['manager-workspace-rename', labels.renameWorkspace],
-    ['manager-workspace-delete', labels.deleteWorkspace],
-  ];
-  titleMap.forEach(([id, title]) => {
-    const node = document.getElementById(id);
-    if (!node) return;
-    node.title = title;
-    node.setAttribute('aria-label', title);
-  });
-}
-
-function renderWorkspaceBar() {
-  const select = document.getElementById('manager-workspace-select');
-  if (!select) return;
-  select.replaceChildren();
-  managerState.workspaces.forEach((workspace) => {
-    const option = document.createElement('option');
-    option.value = workspace.id;
-    option.textContent = workspace.name;
-    select.appendChild(option);
-  });
-  select.value = managerState.activeWorkspaceId;
-}
-
 function forcePromptNavigationVisible() {
   const controls = document.getElementById('prompt-list-controls');
   const list = document.getElementById('prompt-list');
   if (controls) {
-    if (controls.hidden) controls.hidden = false;
-    if (controls.style.getPropertyValue('display')) controls.style.removeProperty('display');
+    controls.hidden = false;
+    controls.style.removeProperty('display');
   }
-  if (list) {
-    const display = list.style.getPropertyValue('display');
-    const priority = list.style.getPropertyPriority('display');
-    if (display !== 'flex' || priority !== 'important') {
-      list.style.setProperty('display', 'flex', 'important');
-    }
-  }
+  if (list) list.style.setProperty('display', 'flex', 'important');
 }
 
 function selectPromptRow(row) {
@@ -262,7 +220,7 @@ function renderPromptFolderSelect(selectedFolderId = null) {
   const select = document.getElementById('manager-prompt-folder-select');
   if (!select) return;
   const labels = copy();
-  const currentFolders = activeFolders().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const folders = activeFolders().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   select.replaceChildren();
 
   const none = document.createElement('option');
@@ -270,15 +228,14 @@ function renderPromptFolderSelect(selectedFolderId = null) {
   none.textContent = labels.noFolder;
   select.appendChild(none);
 
-  currentFolders.forEach((folder) => {
+  folders.forEach((folder) => {
     const option = document.createElement('option');
     option.value = folder.id;
     option.textContent = folder.name;
     select.appendChild(option);
   });
 
-  const valid = currentFolders.some((folder) => folder.id === selectedFolderId);
-  select.value = valid ? selectedFolderId : '';
+  select.value = folders.some((folder) => folder.id === selectedFolderId) ? selectedFolderId : '';
 }
 
 function openPromptForEditing(row) {
@@ -308,11 +265,9 @@ function wireNavigationClicks() {
 }
 
 function wireCreateShortcut() {
-  const mainCreate = document.getElementById('create-prompt-btn');
-  mainCreate?.addEventListener('click', () => {
+  document.getElementById('create-prompt-btn')?.addEventListener('click', () => {
     selectPromptRow(null);
-    const defaultFolder = managerState.category === CATEGORY_FOLDERS
-      && managerState.folderOption !== OPTION_ALL
+    const defaultFolder = managerState.folderOption !== OPTION_ALL
       && managerState.folderOption !== OPTION_UNCATEGORIZED
       ? managerState.folderOption
       : null;
@@ -331,12 +286,9 @@ function rowMatchesCurrentView(meta) {
   if (!meta) return false;
   const { prompt } = meta;
   if (promptWorkspaceId(prompt.uuid) !== managerState.activeWorkspaceId) return false;
-
-  if (managerState.category === CATEGORY_FOLDERS && managerState.folderOption !== OPTION_ALL) {
-    if (managerState.folderOption === OPTION_UNCATEGORIZED) return !prompt.folderId;
-    return prompt.folderId === managerState.folderOption;
-  }
-  return true;
+  if (managerState.folderOption === OPTION_ALL) return true;
+  if (managerState.folderOption === OPTION_UNCATEGORIZED) return !prompt.folderId;
+  return prompt.folderId === managerState.folderOption;
 }
 
 function applyViewToRows() {
@@ -344,32 +296,205 @@ function applyViewToRows() {
   if (!list) return;
   list.querySelectorAll('li[data-uuid]').forEach((row) => {
     const meta = managerState.promptsById.get(row.dataset.uuid);
-    const visible = rowMatchesCurrentView(meta);
-    row.classList.toggle('manager-workspace-hidden', !visible);
+    row.classList.toggle('manager-workspace-hidden', !rowMatchesCurrentView(meta));
     row.style.order = String(meta?.index ?? 999999);
   });
 }
 
-function createFolderFilterButton(label, value, count = null) {
+function makeActionButton(className, text, title, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = className;
+  button.textContent = text;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    Promise.resolve(onClick?.()).catch(console.error);
+  });
+  return button;
+}
+
+function resetWorkspaceLocalView() {
+  const search = document.getElementById('prompt-search-input');
+  if (search?.value) {
+    search.value = '';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  const list = document.getElementById('prompt-list');
+  if (list) list.scrollTop = 0;
+}
+
+function closeCurrentEditor() {
+  document.getElementById('cancel-edit-button')?.click();
+  selectPromptRow(null);
+}
+
+async function switchWorkspace(workspaceId) {
+  if (!managerState.workspaces.some((item) => item.id === workspaceId)) return;
+  if (managerState.activeWorkspaceId === workspaceId) return;
+  closeCurrentEditor();
+  resetWorkspaceLocalView();
+  managerState.activeWorkspaceId = workspaceId;
+  managerState.folderOption = OPTION_ALL;
+  await chrome.storage.local.set({ [ACTIVE_WORKSPACE_KEY]: workspaceId });
+  renderWorkspaceTabs();
+  renderFolderOptions();
+  renderPromptFolderSelect(null);
+  applyViewToRows();
+}
+
+async function createWorkspace() {
+  const labels = copy();
+  const name = window.prompt(labels.name, '');
+  if (name == null || !name.trim()) return;
+  const workspace = { id: generateId('workspace'), name: name.trim() };
+  managerState.workspaces.push(workspace);
+  managerState.activeWorkspaceId = workspace.id;
+  managerState.folderOption = OPTION_ALL;
+  await persistWorkspaceState();
+  closeCurrentEditor();
+  resetWorkspaceLocalView();
+  renderWorkspaceTabs();
+  renderFolderOptions();
+  renderPromptFolderSelect(null);
+  applyViewToRows();
+}
+
+async function renameWorkspace(workspaceId) {
+  const labels = copy();
+  const workspace = managerState.workspaces.find((item) => item.id === workspaceId);
+  if (!workspace) return;
+  const currentName = displayWorkspaceName(workspace);
+  const next = window.prompt(labels.name, currentName);
+  if (next == null || !next.trim() || next.trim() === currentName) return;
+  workspace.name = next.trim();
+  await persistWorkspaceState();
+  renderWorkspaceTabs();
+}
+
+async function deleteWorkspace(workspaceId) {
+  const labels = copy();
+  if (managerState.workspaces.length <= 1) {
+    window.alert(labels.keepOne);
+    return;
+  }
+
+  const workspace = managerState.workspaces.find((item) => item.id === workspaceId);
+  if (!workspace) return;
+  const name = displayWorkspaceName(workspace);
+  if (!window.confirm(format(labels.confirmRemove, { name }))) return;
+
+  const fallback = managerState.workspaces.find((item) => item.id !== workspaceId);
+  Object.keys(managerState.promptWorkspaces).forEach((uuid) => {
+    if (managerState.promptWorkspaces[uuid] === workspaceId) managerState.promptWorkspaces[uuid] = fallback.id;
+  });
+  Object.keys(managerState.folderWorkspaces).forEach((folderId) => {
+    if (managerState.folderWorkspaces[folderId] === workspaceId) managerState.folderWorkspaces[folderId] = fallback.id;
+  });
+
+  managerState.workspaces = managerState.workspaces.filter((item) => item.id !== workspaceId);
+  if (managerState.activeWorkspaceId === workspaceId) {
+    managerState.activeWorkspaceId = fallback.id;
+    managerState.folderOption = OPTION_ALL;
+    closeCurrentEditor();
+    resetWorkspaceLocalView();
+  }
+  await persistWorkspaceState();
+  renderWorkspaceTabs();
+  renderFolderOptions();
+  renderPromptFolderSelect(null);
+  applyViewToRows();
+}
+
+function renderWorkspaceTabs() {
+  const host = document.getElementById('manager-workspace-tabs');
+  const editToggle = document.getElementById('manager-workspace-edit-toggle');
+  if (!host || !editToggle) return;
+
+  const labels = copy();
+  host.replaceChildren();
+
+  managerState.workspaces.forEach((workspace) => {
+    const wrap = document.createElement('span');
+    wrap.className = 'manager-workspace-tab-wrap';
+    wrap.classList.toggle('is-active', workspace.id === managerState.activeWorkspaceId);
+
+    const select = document.createElement('button');
+    select.type = 'button';
+    select.className = 'manager-workspace-tab';
+    select.textContent = displayWorkspaceName(workspace);
+    select.title = select.textContent;
+    select.setAttribute('role', 'tab');
+    select.setAttribute('aria-selected', String(workspace.id === managerState.activeWorkspaceId));
+    select.addEventListener('click', () => switchWorkspace(workspace.id).catch(console.error));
+    wrap.appendChild(select);
+
+    if (managerState.workspaceEditing) {
+      wrap.appendChild(makeActionButton(
+        'manager-workspace-inline-action',
+        '✎',
+        labels.rename,
+        () => renameWorkspace(workspace.id),
+      ));
+      wrap.appendChild(makeActionButton(
+        'manager-workspace-inline-action is-danger',
+        '×',
+        labels.remove,
+        () => deleteWorkspace(workspace.id),
+      ));
+    }
+
+    host.appendChild(wrap);
+  });
+
+  if (managerState.workspaceEditing) {
+    host.appendChild(makeActionButton(
+      'manager-workspace-create-inline',
+      '+',
+      labels.create,
+      () => createWorkspace(),
+    ));
+  }
+
+  editToggle.textContent = managerState.workspaceEditing ? '✓' : '✎';
+  editToggle.title = managerState.workspaceEditing ? labels.done : labels.edit;
+  editToggle.setAttribute('aria-label', editToggle.title);
+  editToggle.classList.toggle('is-editing', managerState.workspaceEditing);
+  editToggle.setAttribute('aria-pressed', String(managerState.workspaceEditing));
+}
+
+function wireWorkspaceControls() {
+  document.getElementById('manager-workspace-edit-toggle')?.addEventListener('click', () => {
+    managerState.workspaceEditing = !managerState.workspaceEditing;
+    renderWorkspaceTabs();
+  });
+}
+
+function createFolderFilterButton(label, value) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'manager-category-option';
-  button.textContent = count == null ? label : `${label} (${count})`;
+  button.textContent = label;
+  button.title = label;
+  button.setAttribute('aria-label', label);
   button.classList.toggle('is-active', managerState.folderOption === value);
   button.setAttribute('aria-pressed', String(managerState.folderOption === value));
   button.addEventListener('click', () => {
     managerState.folderOption = value;
     renderFolderOptions();
     applyViewToRows();
-    const uuid = document.getElementById('prompt-uuid')?.value;
-    if (!uuid && value !== OPTION_ALL && value !== OPTION_UNCATEGORIZED) {
+    if (!document.getElementById('prompt-uuid')?.value
+      && value !== OPTION_ALL
+      && value !== OPTION_UNCATEGORIZED) {
       renderPromptFolderSelect(value);
     }
   });
   return button;
 }
 
-function createManagedFolderChip(folder, count) {
+function createManagedFolderChip(folder) {
   const labels = copy();
   const group = document.createElement('span');
   group.className = 'manager-folder-group';
@@ -378,7 +503,7 @@ function createManagedFolderChip(folder, count) {
   const select = document.createElement('button');
   select.type = 'button';
   select.className = 'manager-folder-select-btn';
-  select.textContent = `${folder.name} (${count})`;
+  select.textContent = folder.name;
   select.title = folder.name;
   select.addEventListener('click', () => {
     managerState.folderOption = folder.id;
@@ -387,26 +512,14 @@ function createManagedFolderChip(folder, count) {
     if (!document.getElementById('prompt-uuid')?.value) renderPromptFolderSelect(folder.id);
   });
 
-  const rename = document.createElement('button');
-  rename.type = 'button';
-  rename.className = 'manager-folder-mini';
-  rename.textContent = '✎';
-  rename.title = labels.renameFolder;
-  rename.setAttribute('aria-label', labels.renameFolder);
-  rename.addEventListener('click', async () => {
+  const rename = makeActionButton('manager-folder-mini', '✎', labels.renameFolder, async () => {
     const next = window.prompt(labels.folderName, folder.name);
     if (next == null || !next.trim() || next.trim() === folder.name) return;
     await updateFolder(folder.id, { name: next.trim() });
     await refreshManagerData();
   });
 
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'manager-folder-mini manager-folder-mini-danger';
-  remove.textContent = '×';
-  remove.title = labels.deleteFolder;
-  remove.setAttribute('aria-label', labels.deleteFolder);
-  remove.addEventListener('click', async () => {
+  const remove = makeActionButton('manager-folder-mini manager-folder-mini-danger', '×', labels.deleteFolder, async () => {
     if (!window.confirm(format(labels.confirmDeleteFolder, { name: folder.name }))) return;
     await deleteFolder(folder.id);
     delete managerState.folderWorkspaces[folder.id];
@@ -422,32 +535,19 @@ function createManagedFolderChip(folder, count) {
 function renderFolderOptions() {
   const host = document.getElementById('manager-category-options');
   if (!host) return;
-  host.replaceChildren();
-  if (managerState.category !== CATEGORY_FOLDERS) {
-    host.hidden = true;
-    managerState.folderOption = OPTION_ALL;
-    return;
-  }
-
   host.hidden = false;
-  const labels = copy();
-  const workspacePrompts = activePrompts();
-  const folders = activeFolders().sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  const counts = new Map();
-  let uncategorizedCount = 0;
-  workspacePrompts.forEach((prompt) => {
-    if (!prompt.folderId) uncategorizedCount += 1;
-    else counts.set(prompt.folderId, (counts.get(prompt.folderId) || 0) + 1);
-  });
+  host.replaceChildren();
 
+  const labels = copy();
+  const folders = activeFolders().sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const validOptions = new Set([OPTION_ALL, OPTION_UNCATEGORIZED, ...folders.map((folder) => folder.id)]);
   if (!validOptions.has(managerState.folderOption)) managerState.folderOption = OPTION_ALL;
 
-  const create = document.createElement('button');
-  create.type = 'button';
-  create.className = 'manager-folder-create';
-  create.textContent = `+ ${labels.newFolder}`;
-  create.addEventListener('click', async () => {
+  host.appendChild(createFolderFilterButton(labels.all, OPTION_ALL));
+  host.appendChild(createFolderFilterButton(labels.uncategorized, OPTION_UNCATEGORIZED));
+  folders.forEach((folder) => host.appendChild(createManagedFolderChip(folder)));
+
+  host.appendChild(makeActionButton('manager-folder-create', '+', labels.newFolder, async () => {
     const name = window.prompt(labels.folderName, '');
     if (name == null || !name.trim()) return;
     const folder = await saveFolder({ name: name.trim() });
@@ -456,104 +556,7 @@ function renderFolderOptions() {
     managerState.folderOption = folder.id;
     await refreshManagerData();
     renderPromptFolderSelect(folder.id);
-  });
-  host.appendChild(create);
-  host.appendChild(createFolderFilterButton(labels.allFolders, OPTION_ALL, workspacePrompts.length));
-  host.appendChild(createFolderFilterButton(labels.uncategorized, OPTION_UNCATEGORIZED, uncategorizedCount));
-  folders.forEach((folder) => host.appendChild(createManagedFolderChip(folder, counts.get(folder.id) || 0)));
-}
-
-function activateCategory(category) {
-  managerState.category = category === CATEGORY_FOLDERS ? CATEGORY_FOLDERS : CATEGORY_ALL;
-  managerState.folderOption = OPTION_ALL;
-  document.querySelectorAll('.manager-category-tab').forEach((button) => {
-    const active = button.dataset.managerCategory === managerState.category;
-    button.classList.toggle('is-active', active);
-    button.setAttribute('aria-selected', String(active));
-  });
-  renderFolderOptions();
-  applyViewToRows();
-}
-
-function wireCategoryTabs() {
-  document.querySelectorAll('.manager-category-tab').forEach((button) => {
-    button.addEventListener('click', () => activateCategory(button.dataset.managerCategory));
-  });
-}
-
-function closeCurrentEditor() {
-  document.getElementById('cancel-edit-button')?.click();
-  selectPromptRow(null);
-}
-
-async function switchWorkspace(workspaceId) {
-  if (!managerState.workspaces.some((item) => item.id === workspaceId)) return;
-  closeCurrentEditor();
-  managerState.activeWorkspaceId = workspaceId;
-  managerState.folderOption = OPTION_ALL;
-  await chrome.storage.local.set({ [ACTIVE_WORKSPACE_KEY]: workspaceId });
-  renderWorkspaceBar();
-  renderFolderOptions();
-  renderPromptFolderSelect(null);
-  applyViewToRows();
-}
-
-function wireWorkspaceControls() {
-  const labels = copy();
-  const select = document.getElementById('manager-workspace-select');
-  select?.addEventListener('change', () => switchWorkspace(select.value).catch(console.error));
-
-  document.getElementById('manager-workspace-add')?.addEventListener('click', async () => {
-    const name = window.prompt(labels.workspaceName, '');
-    if (name == null || !name.trim()) return;
-    const workspace = { id: generateId('workspace'), name: name.trim() };
-    managerState.workspaces.push(workspace);
-    managerState.activeWorkspaceId = workspace.id;
-    managerState.folderOption = OPTION_ALL;
-    await persistWorkspaceState();
-    closeCurrentEditor();
-    renderWorkspaceBar();
-    renderFolderOptions();
-    renderPromptFolderSelect(null);
-    applyViewToRows();
-  });
-
-  document.getElementById('manager-workspace-rename')?.addEventListener('click', async () => {
-    const current = activeWorkspace();
-    if (!current) return;
-    const next = window.prompt(labels.workspaceName, current.name);
-    if (next == null || !next.trim() || next.trim() === current.name) return;
-    current.name = next.trim();
-    await persistWorkspaceState();
-    renderWorkspaceBar();
-  });
-
-  document.getElementById('manager-workspace-delete')?.addEventListener('click', async () => {
-    if (managerState.workspaces.length <= 1) {
-      window.alert(labels.cannotDeleteOnlyWorkspace);
-      return;
-    }
-    const current = activeWorkspace();
-    if (!current) return;
-    if (!window.confirm(format(labels.confirmDeleteWorkspace, { name: current.name }))) return;
-
-    const fallback = managerState.workspaces.find((item) => item.id !== current.id);
-    Object.keys(managerState.promptWorkspaces).forEach((uuid) => {
-      if (managerState.promptWorkspaces[uuid] === current.id) managerState.promptWorkspaces[uuid] = fallback.id;
-    });
-    Object.keys(managerState.folderWorkspaces).forEach((folderId) => {
-      if (managerState.folderWorkspaces[folderId] === current.id) managerState.folderWorkspaces[folderId] = fallback.id;
-    });
-    managerState.workspaces = managerState.workspaces.filter((item) => item.id !== current.id);
-    managerState.activeWorkspaceId = fallback.id;
-    managerState.folderOption = OPTION_ALL;
-    await persistWorkspaceState();
-    closeCurrentEditor();
-    renderWorkspaceBar();
-    renderFolderOptions();
-    renderPromptFolderSelect(null);
-    applyViewToRows();
-  });
+  }));
 }
 
 function wirePromptFolderSelect() {
@@ -577,11 +580,9 @@ function wireFormPlacement() {
   const form = document.getElementById('prompt-form');
   if (!form) return;
   form.addEventListener('submit', () => {
-    const uuid = document.getElementById('prompt-uuid')?.value || null;
-    const folderId = document.getElementById('manager-prompt-folder-select')?.value || null;
     managerState.pendingPlacement = {
-      uuid,
-      folderId,
+      uuid: document.getElementById('prompt-uuid')?.value || null,
+      folderId: document.getElementById('manager-prompt-folder-select')?.value || null,
       workspaceId: managerState.activeWorkspaceId,
       beforeIds: new Set(managerState.prompts.map((prompt) => prompt.uuid)),
     };
@@ -617,7 +618,7 @@ async function refreshManagerData(promptsOverride = null) {
     managerState.folders = Array.isArray(folders) ? folders : [];
     await ensureWorkspaceState(managerState.prompts, managerState.folders);
     refreshPromptMaps();
-    renderWorkspaceBar();
+    renderWorkspaceTabs();
     renderFolderOptions();
 
     const uuid = document.getElementById('prompt-uuid')?.value;
@@ -632,7 +633,7 @@ async function refreshManagerData(promptsOverride = null) {
 function observeLegacyVisibilityWrites() {
   const controls = document.getElementById('prompt-list-controls');
   const list = document.getElementById('prompt-list');
-  const observer = new MutationObserver(() => forcePromptNavigationVisible());
+  const observer = new MutationObserver(forcePromptNavigationVisible);
   if (controls) observer.observe(controls, { attributes: true, attributeFilter: ['hidden', 'style'] });
   if (list) observer.observe(list, { attributes: true, attributeFilter: ['style'] });
 }
@@ -656,11 +657,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await globalThis.OPMI18n?.ready;
   document.body.classList.add('is-expanded-tab', 'manager-page');
 
-  localizeStaticUi();
   forcePromptNavigationVisible();
   wireNavigationClicks();
   wireCreateShortcut();
-  wireCategoryTabs();
   wireWorkspaceControls();
   wirePromptFolderSelect();
   wireFormPlacement();
@@ -669,8 +668,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await refreshManagerData();
 
   globalThis.OPMI18n?.subscribe?.(() => {
-    localizeStaticUi();
-    renderWorkspaceBar();
+    renderWorkspaceTabs();
     renderFolderOptions();
     const uuid = document.getElementById('prompt-uuid')?.value;
     renderPromptFolderSelect(uuid ? managerState.promptsById.get(uuid)?.prompt?.folderId : null);
