@@ -9,12 +9,11 @@
   <style>
     html[data-i18n-pending] body { visibility: hidden; animation: opm-i18n-fallback 0s 4s forwards; }
     @keyframes opm-i18n-fallback { to { visibility: visible; } }
-    .spm-prompt-action-btn[data-opm-action="share"] { display: none !important; }
   </style>
   <script src="../i18n.js"></script>
 </head>
 
-<body>
+<body class="manager-page is-expanded-tab">
   <div class="manager-page-shell">
     <section class="manager-workspace-bar manager-workspace-tabs-shell" aria-label="Workspace switcher">
       <div id="manager-workspace-tabs" class="manager-workspace-tabs" role="tablist" aria-label="Workspace choices"></div>
@@ -25,57 +24,54 @@
       <aside class="sidebar-panel manager-navigation">
         <div id="manager-category-options" class="manager-category-options manager-folder-options" aria-label="Folder filters"></div>
 
-        <!-- The legacy controller still owns prompt CRUD and moves this form into the editor pane in expanded mode. -->
-        <div class="sidebar-top-slot" hidden>
-          <div class="sidebar-action-bar" id="sidebar-action-bar"></div>
-          <div class="sidebar-composer" id="sidebar-composer">
-            <form id="prompt-form">
-              <input type="hidden" id="prompt-uuid" />
-              <input type="text" id="prompt-title" class="opm-input-field" data-i18n-placeholder="prompt.title" placeholder="Prompt Title" required />
-              <textarea id="prompt-content" class="opm-textarea-field" data-i18n-placeholder="prompt.contentPlaceholder" placeholder="Enter your prompt here - Use #variablename# for dynamic values." required></textarea>
-              <div class="manager-prompt-folder-field manager-prompt-folder-field-label-free">
-                <select id="manager-prompt-folder-select" class="opm-input-field manager-prompt-folder-select" aria-label="Folder"></select>
-              </div>
-              <div id="prompt-tags-host" class="prompt-tags-host" hidden></div>
-              <div class="form-actions">
-                <button class="main" type="submit" id="submit-button">
-                  <img src="../icons/add-icon.png" data-i18n-alt="common.add" alt="Add" style="margin-right: 5px" />
-                  <span data-i18n="prompt.save">Save prompt</span>
-                </button>
-                <button type="button" id="cancel-edit-button" data-i18n="common.back">Back</button>
-              </div>
-            </form>
-          </div>
-        </div>
-
         <div class="prompts-container manager-nav-body">
           <div class="prompts-section">
-            <div class="opm-form-container opm-variable-input-form sidebar-variable-input" id="sidebar-variable-input" hidden>
-              <div id="spm-variable-fields" class="opm-variable-fields"></div>
-              <div class="opm-variable-actions">
-                <button type="button" class="opm-button" id="spm-variable-submit" data-i18n="prompt.submitVariables">Submit</button>
-                <button type="button" class="opm-button" id="spm-variable-back" data-i18n="common.back">Back</button>
-              </div>
-            </div>
-
             <div id="prompt-list-controls" class="prompt-list-controls manager-nav-controls manager-search-create-row">
               <input type="search" id="prompt-search-input" class="prompt-search-input" data-i18n-placeholder="prompt.search" placeholder="Type to search" autocomplete="off" />
               <button type="button" id="create-prompt-btn" class="manager-new-prompt manager-new-prompt-inline" data-i18n-title="prompt.create" title="Create Prompt" aria-label="Create Prompt">
                 <img src="../icons/add-icon.png" alt="" aria-hidden="true" />
               </button>
-              <div id="prompt-tags-filter" class="prompt-tags-filter" hidden></div>
             </div>
-
             <ul id="prompt-list" class="manager-prompt-list"></ul>
           </div>
         </div>
+
+        <footer class="footer">
+          <div class="footer-icons">
+            <a class="manager-settings-link" href="../settings.html" data-i18n-title="settings.title" title="Settings">
+              <svg class="footer-md-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81a.488.488 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+              <span data-i18n="settings.title">Settings</span>
+            </a>
+          </div>
+        </footer>
       </aside>
 
-      <main class="composer-panel manager-editor" id="composer-panel" hidden></main>
+      <main class="composer-panel manager-editor" id="composer-panel">
+        <form id="prompt-form">
+          <input type="hidden" id="prompt-uuid" />
+          <input type="text" id="prompt-title" class="opm-input-field" data-i18n-placeholder="prompt.title" placeholder="Prompt Title" required />
+          <textarea id="prompt-content" class="opm-textarea-field" data-i18n-placeholder="prompt.contentPlaceholder" placeholder="Enter your prompt here - Use #variablename# for dynamic values." required></textarea>
+          <div class="manager-prompt-folder-field manager-prompt-folder-field-label-free">
+            <select id="manager-prompt-folder-select" class="opm-input-field manager-prompt-folder-select" aria-label="Folder"></select>
+          </div>
+          <div id="prompt-tags-host" class="prompt-tags-host" hidden>
+            <div class="spm-tag-row">
+              <div id="prompt-tags-pills" class="spm-tags-container"></div>
+              <input id="prompt-tags-input" type="text" class="spm-tag-input" data-i18n-placeholder="tags.inputPlaceholder" placeholder="Add tags" autocomplete="off" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="main" type="submit" id="submit-button">
+              <img src="../icons/add-icon.png" data-i18n-alt="common.add" alt="Add" style="margin-right: 5px" />
+              <span id="prompt-save-label" data-i18n="prompt.save">Save prompt</span>
+            </button>
+            <button type="button" id="cancel-edit-button" data-i18n="common.back">Back</button>
+          </div>
+        </form>
+      </main>
     </div>
   </div>
 
-  <script type="module" src="sidepanel.js"></script>
-  <script type="module" src="../fullpage-manager.js"></script>
+  <script type="module" src="../manager-app.js"></script>
 </body>
 </html>
